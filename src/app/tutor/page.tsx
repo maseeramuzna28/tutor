@@ -20,6 +20,7 @@ import Link from "next/link";
 import { DoubtButton } from "@/components/evil-buttons/DoubtButton";
 import { RevealButton } from "@/components/evil-buttons/RevealButton";
 import TutoLoader from "@/components/TutoLoader";
+import PdfTutorWorkspace from "@/components/PdfTutorWorkspace";
 
 export default function TutorPage() {
   const [micState, setMicState] = useState<MicState>("idle");
@@ -116,28 +117,60 @@ export default function TutorPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 mb-16 md:mb-0">
-      {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-serif text-stone-950 font-normal">Voice AI Tutor</h1>
-            <span className="craft-badge craft-badge-red">
-              Real-time Derivations
-            </span>
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 mb-16 md:mb-0 space-y-16">
+      {/* Primary Feature: PDF Multimodal Voice & Sketch Tutor */}
+      <section>
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="editorial-kicker">FEATURE 01 • PDF MULTIMODAL TUTOR</span>
+              <span className="craft-badge craft-badge-red text-[10px]">
+                Interactive Sketch + Voice
+              </span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-serif text-stone-950 font-normal mt-1">
+              Study with PDF & Circle Your Doubts
+            </h1>
+            <p className="text-xs sm:text-sm text-stone-600 mt-1 max-w-3xl leading-relaxed font-sans">
+              Upload your lecture slides or open preloaded engineering handouts. Use the sketch tool to circle any formula or paragraph on the page, then speak your question. The reasoning engine analyzes the circled excerpt, speaks the derivation aloud, and projects explanatory sketch annotations directly on the display.
+            </p>
           </div>
-          <p className="text-xs text-stone-600 mt-1 font-sans">
-            Speak naturally. Confirm your question. Review step-by-step mathematical reasoning with spoken explanation.
-          </p>
+
+          <RevealButton
+            secret="Ephemeral RAM • Zero Server Persistence"
+            label="Document Privacy"
+            hiddenLabel="Privacy Shield"
+            maskedValue="Client Ephemeral • Shielded"
+          />
         </div>
 
-        <RevealButton
-          secret="Anonymous Channel • Identity Stripped"
-          label="Zero Identity Exposure"
-          hiddenLabel="Privacy Guarantee"
-          maskedValue="Student • Verified Anonymous"
-        />
-      </div>
+        {/* The PDF Workspace */}
+        <PdfTutorWorkspace />
+      </section>
+
+      {/* Secondary Feature: Direct Voice & Mathematical Derivation Workspace */}
+      <section className="pt-8 border-t-2 border-stone-950">
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="editorial-kicker">FEATURE 02 • ADDITIONAL MODE</span>
+              <span className="craft-badge text-[10px]">Direct Microphone Input</span>
+            </div>
+            <h2 className="text-2xl font-serif text-stone-950 font-normal mt-0.5">
+              Direct Voice Query & Symbolic Derivations
+            </h2>
+            <p className="text-xs text-stone-600 mt-0.5 font-sans">
+              Have a quick verbal question without a document? Speak directly into the microphone for immediate step-by-step LaTeX derivation.
+            </p>
+          </div>
+
+          <RevealButton
+            secret="Anonymous Channel • Identity Stripped"
+            label="Zero Identity Exposure"
+            hiddenLabel="Privacy Guarantee"
+            maskedValue="Student • Verified Anonymous"
+          />
+        </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Voice Mic & Inputs */}
@@ -430,19 +463,20 @@ export default function TutorPage() {
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center craft-panel p-12 text-center h-full min-h-[440px] shadow-sm">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 mb-4">
-                <Sparkles className="h-6 w-6" />
+            <div className="flex flex-col items-center justify-center border border-stone-200 bg-white p-12 text-center h-full min-h-[440px] rounded-none">
+              <div className="flex h-12 w-12 items-center justify-center rounded-none bg-stone-100 border border-stone-300 text-stone-900 mb-4 font-mono">
+                <Sparkles className="h-5 w-5 text-red-600" />
               </div>
-              <h3 className="text-base font-semibold text-slate-900">No Active Question</h3>
-              <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
-                Click the microphone to speak your question or pick an example inquiry from the left to view step-by-step
+              <h3 className="text-base font-serif font-bold text-stone-900">Direct Question Standby</h3>
+              <p className="text-xs text-stone-500 max-w-sm mt-1 leading-relaxed font-sans">
+                Click the microphone to speak your question directly or pick an example inquiry from the left to view step-by-step
                 reasoning.
               </p>
             </div>
           )}
         </div>
       </div>
+      </section>
     </div>
   );
 }

@@ -25,39 +25,39 @@ export default function LeaderboardPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 mb-16 md:mb-0">
       {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Academic Recognition</h1>
-            <span className="craft-badge craft-badge-amber">
-              Verified Credits
+            <h1 className="text-2xl font-bold tracking-tight text-stone-900">Academic Recognition</h1>
+            <span className="craft-badge craft-badge-neutral">
+              Credits
             </span>
           </div>
-          <p className="text-xs text-slate-600 mt-1">
-            Points earned through peer assistance, verified answers, and collaborative project contributions.
+          <p className="text-xs text-stone-600 mt-1">
+            Points earned via peer assistance and verified solutions.
           </p>
         </div>
 
         {/* Scope Toggle */}
-        <div className="flex rounded-lg border border-slate-200 bg-white p-1 text-xs shadow-xs">
+        <div className="flex border border-stone-200 bg-white p-0.5 text-xs">
           <button
             onClick={() => setScope("national")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold transition-all ${
               scope === "national"
-                ? "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-red-700 text-white"
+                : "text-stone-600 hover:text-stone-900"
             }`}
           >
             <Globe className="h-3.5 w-3.5" />
-            <span>All India</span>
+            <span>National</span>
           </button>
 
           <button
             onClick={() => setScope("college")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 font-semibold transition-all ${
               scope === "college"
-                ? "bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
+                ? "bg-red-700 text-white"
+                : "text-stone-600 hover:text-stone-900"
             }`}
           >
             <Building2 className="h-3.5 w-3.5" />
@@ -68,74 +68,72 @@ export default function LeaderboardPage() {
 
       {/* Point Rules Summary */}
       <div className="mb-6 grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-        <div className="craft-panel p-3 shadow-xs">
-          <p className="text-sm font-bold text-indigo-600">+5 pts</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-0.5">Post Doubt to Community</p>
+        <div className="craft-panel p-3">
+          <p className="text-sm font-bold text-stone-900">+5 pts</p>
+          <p className="text-[10px] font-medium text-stone-500 mt-0.5">Post Question</p>
         </div>
-        <div className="craft-panel p-3 shadow-xs">
-          <p className="text-sm font-bold text-indigo-600">+10 pts</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-0.5">Peer Solution Provided</p>
+        <div className="craft-panel p-3">
+          <p className="text-sm font-bold text-stone-900">+10 pts</p>
+          <p className="text-[10px] font-medium text-stone-500 mt-0.5">Peer Solution</p>
         </div>
-        <div className="craft-panel p-3 shadow-xs">
-          <p className="text-sm font-bold text-emerald-600">+25 pts</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-0.5">Staff Verified Solution</p>
+        <div className="craft-panel p-3">
+          <p className="text-sm font-bold text-emerald-700">+25 pts</p>
+          <p className="text-[10px] font-medium text-stone-500 mt-0.5">Verified Solution</p>
         </div>
-        <div className="craft-panel p-3 shadow-xs">
-          <p className="text-sm font-bold text-amber-600">+20 pts</p>
-          <p className="text-[10px] font-medium text-slate-500 mt-0.5">Project Collaboration</p>
+        <div className="craft-panel p-3">
+          <p className="text-sm font-bold text-red-700">+20 pts</p>
+          <p className="text-[10px] font-medium text-stone-500 mt-0.5">Project Lead</p>
         </div>
       </div>
 
       {/* Leaderboard Table */}
-      <div className="craft-panel overflow-hidden shadow-sm">
-        <div className="grid grid-cols-12 border-b border-slate-200 bg-slate-50/80 px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+      <div className="craft-panel overflow-hidden">
+        <div className="grid grid-cols-12 border-b border-stone-200 bg-stone-50 px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-stone-600">
           <div className="col-span-2">Rank</div>
           <div className="col-span-5">Scholar</div>
           <div className="col-span-3">Institution</div>
           <div className="col-span-2 text-right">Points</div>
         </div>
 
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-stone-100">
           {board.map((item) => {
-            const isTop3 = item.rank <= 3;
-
             return (
               <div
                 key={item.rank}
                 className={`grid grid-cols-12 items-center px-6 py-3.5 text-xs transition-colors ${
                   item.is_current
-                    ? "bg-indigo-50/50 font-semibold"
-                    : "hover:bg-slate-50"
+                    ? "bg-red-50/60 font-semibold"
+                    : "hover:bg-stone-50"
                 }`}
               >
                 <div className="col-span-2 flex items-center gap-2">
                   {item.rank === 1 ? (
-                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <Trophy className="h-4 w-4 text-amber-600" />
                   ) : item.rank === 2 ? (
-                    <Award className="h-4 w-4 text-slate-400" />
+                    <Award className="h-4 w-4 text-stone-400" />
                   ) : item.rank === 3 ? (
-                    <Award className="h-4 w-4 text-amber-700" />
+                    <Award className="h-4 w-4 text-stone-600" />
                   ) : (
-                    <span className="font-mono text-slate-400 font-semibold pl-1">#{item.rank}</span>
+                    <span className="font-mono text-stone-400 font-semibold pl-1">#{item.rank}</span>
                   )}
                 </div>
 
                 <div className="col-span-5 flex items-center gap-2">
-                  <span className={item.is_current ? "font-bold text-indigo-700" : "font-medium text-slate-900"}>
+                  <span className={item.is_current ? "font-bold text-red-700" : "font-medium text-stone-900"}>
                     {item.display_name}
                   </span>
                   {item.is_current && (
-                    <span className="craft-badge craft-badge-blue text-[9px] py-0.2">
+                    <span className="craft-badge craft-badge-red text-[9px] py-0.2">
                       You
                     </span>
                   )}
                 </div>
 
-                <div className="col-span-3 text-slate-500 text-[11px] font-medium truncate">{item.college}</div>
+                <div className="col-span-3 text-stone-500 text-[11px] font-medium truncate">{item.college}</div>
 
                 <div className="col-span-2 text-right">
-                  <span className="font-bold text-slate-900">{item.points}</span>
-                  <span className="text-[10px] text-slate-400 font-medium ml-1">pts</span>
+                  <span className="font-bold text-stone-900">{item.points}</span>
+                  <span className="text-[10px] text-stone-400 font-medium ml-1">pts</span>
                 </div>
               </div>
             );

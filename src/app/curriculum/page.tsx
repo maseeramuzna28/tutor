@@ -40,23 +40,23 @@ export default function CurriculumPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 mb-16 md:mb-0">
       {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Curriculum & Course Notes</h1>
-            <span className="craft-badge craft-badge-blue">
-              Official Syllabus
+            <h1 className="text-2xl font-bold tracking-tight text-stone-900">Curriculum & Course Notes</h1>
+            <span className="craft-badge craft-badge-neutral">
+              Official Notes
             </span>
           </div>
-          <p className="text-xs text-slate-600 mt-1">
-            Faculty-posted syllabus updates, lecture note clarifications, and semiconductor lab guidelines.
+          <p className="text-xs text-stone-600 mt-1">
+            Faculty syllabus revisions, lecture clarifications, and lab guidelines.
           </p>
         </div>
 
         {currentUser.role === "faculty" && (
           <button
             onClick={() => setIsPosting(!isPosting)}
-            className="evil-btn evil-btn-emerald px-4 py-2 text-xs font-semibold gap-1.5 self-start sm:self-auto"
+            className="evil-btn evil-btn-primary px-4 py-2 text-xs font-semibold gap-1.5 self-start sm:self-auto"
           >
             <Plus className="h-4 w-4" />
             <span>Post Notice</span>
@@ -68,46 +68,46 @@ export default function CurriculumPage() {
       {isPosting && (
         <form
           onSubmit={handleCreatePost}
-          className="mb-8 craft-panel p-6 shadow-md space-y-4 cube-enter"
+          className="mb-8 craft-panel p-6 space-y-4"
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-            <h3 className="text-sm font-bold text-slate-900">Publish Academic Update</h3>
-            <span className="text-[10px] text-emerald-700 font-bold">Instructor Verified</span>
+          <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+            <h3 className="text-sm font-bold text-stone-900">Publish Academic Update</h3>
+            <span className="text-[10px] text-red-700 font-bold uppercase tracking-wider">Faculty Verified</span>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Update Title</label>
+            <label className="block text-xs font-semibold text-stone-700 mb-1.5">Update Title</label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Integration of Transformer LoRA into Linear Algebra syllabus"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none transition-all shadow-xs"
+              placeholder="e.g. Linear Algebra syllabus modification"
+              className="w-full border border-stone-200 bg-white px-3.5 py-2 text-xs text-stone-900 placeholder-stone-400 focus:border-red-600 focus:outline-none transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Subject / Target Concept</label>
+            <label className="block text-xs font-semibold text-stone-700 mb-1.5">Subject / Concept</label>
             <input
               type="text"
               required
               value={concept}
               onChange={(e) => setConcept(e.target.value)}
               placeholder="e.g. Eigenvalues & Diagonalization"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none transition-all shadow-xs"
+              className="w-full border border-stone-200 bg-white px-3.5 py-2 text-xs text-stone-900 placeholder-stone-400 focus:border-red-600 focus:outline-none transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">Notice Content & Problem Context</label>
+            <label className="block text-xs font-semibold text-stone-700 mb-1.5">Notice Content</label>
             <textarea
               required
               value={body}
               onChange={(e) => setBody(e.target.value)}
               rows={4}
-              placeholder="Explain the curricular modification, reading materials, and what students should revise..."
-              className="w-full rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none transition-all shadow-xs"
+              placeholder="Provide context and notes..."
+              className="w-full border border-stone-200 bg-white p-3 text-xs text-stone-900 placeholder-stone-400 focus:border-red-600 focus:outline-none transition-all"
             />
           </div>
 
@@ -115,7 +115,7 @@ export default function CurriculumPage() {
             <button
               type="button"
               onClick={() => setIsPosting(false)}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              className="border border-stone-200 px-4 py-2 text-xs font-medium text-stone-600 hover:bg-stone-50"
             >
               Cancel
             </button>
@@ -131,16 +131,16 @@ export default function CurriculumPage() {
         {posts.map((post) => (
           <div
             key={post.id}
-            className="craft-panel p-6 shadow-sm transition-all hover:shadow-md hover:border-slate-300"
+            className="craft-panel p-6 hover:border-stone-400 transition-all"
           >
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
-              <span className="craft-badge craft-badge-blue text-[10px]">
+              <span className="craft-badge craft-badge-neutral text-[10px]">
                 {post.concept}
               </span>
 
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span className="flex items-center gap-1 font-semibold text-slate-700">
-                  <GraduationCap className="h-3.5 w-3.5 text-indigo-600" />
+              <div className="flex items-center gap-2 text-[11px] text-stone-500">
+                <span className="flex items-center gap-1 font-semibold text-stone-700">
+                  <GraduationCap className="h-3.5 w-3.5 text-red-600" />
                   {post.faculty_name || "Faculty Member"} ({post.faculty_college || "Engineering Dept"})
                 </span>
                 <span>•</span>
@@ -148,8 +148,8 @@ export default function CurriculumPage() {
               </div>
             </div>
 
-            <h3 className="text-base font-bold text-slate-900 tracking-tight mb-2">{post.title}</h3>
-            <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{post.body}</p>
+            <h3 className="text-base font-bold text-stone-900 tracking-tight mb-2">{post.title}</h3>
+            <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line">{post.body}</p>
           </div>
         ))}
       </div>
