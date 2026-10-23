@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import Logo from "@/components/Logo";
 
 export const metadata: Metadata = {
   title: "TUTO — Voice-First Learning & Anonymous Doubt Resolution",
   description:
     "Ask out loud. Ask without fear. Solve college doubts instantly with AI voice derivations and peer collaboration.",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -20,8 +25,8 @@ export default function RootLayout({
         <main className="flex-1 pb-20 md:pb-8">{children}</main>
         <footer className="border-t border-slate-200/80 bg-white py-8 px-4 text-center text-xs text-slate-500">
           <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2.5">
-              <span className="font-semibold text-slate-900 tracking-tight">TUTO</span>
+            <div className="flex items-center gap-3">
+              <Logo height={24} />
               <span className="text-slate-300">•</span>
               <span>Voice-first doubt resolution & anonymous student telemetry</span>
             </div>

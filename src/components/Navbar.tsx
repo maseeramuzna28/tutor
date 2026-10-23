@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/apiClient";
 import { User } from "@/lib/types";
+import Logo from "@/components/Logo";
 import {
   Mic,
   MessageSquare,
@@ -63,17 +64,7 @@ export default function Navbar() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           {/* Brand */}
           <div className="flex items-center gap-8">
-            <Link href="/" className="group flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 border border-indigo-200/80 text-indigo-600 shadow-xs transition-all group-hover:scale-105">
-                <Mic className="h-4 w-4" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-base font-bold tracking-tight text-slate-900">TUTO</span>
-                <span className="hidden sm:inline-block rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-600 border border-indigo-200">
-                  Voice Platform
-                </span>
-              </div>
-            </Link>
+            <Logo asLink href="/" height={32} showBadge badgeText="Voice Platform" />
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center gap-1">

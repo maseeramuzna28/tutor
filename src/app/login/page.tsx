@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/apiClient";
 import { User, UserRole } from "@/lib/types";
 import {
-  Mic,
   ArrowRight,
   ShieldCheck,
   Building2,
   ChevronDown,
 } from "lucide-react";
+import Logo from "@/components/Logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -65,8 +65,8 @@ export default function LoginPage() {
     <div className="mx-auto max-w-md px-4 py-16 sm:px-6 mb-16 md:mb-0">
       <div className="craft-panel p-8 shadow-lg">
         <div className="text-center mb-8">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 mb-3 shadow-xs">
-            <Mic className="h-5 w-5" />
+          <div className="flex justify-center mb-4">
+            <Logo height={42} />
           </div>
 
           <h1 className="text-xl font-bold tracking-tight text-slate-900">Welcome to TUTO</h1>

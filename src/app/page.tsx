@@ -6,6 +6,7 @@ import { Mic, Activity, ArrowRight, Users, Shield, ChevronRight } from "lucide-r
 import { rise } from "cube-motion";
 import { Hub } from "@lucasmarkes/hairline/react";
 import gsap from "gsap";
+import Logo from "@/components/Logo";
 
 export default function Home() {
   const heroRef = useRef<HTMLDivElement>(null);
@@ -36,9 +37,12 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           {/* Left Column */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50/80 px-3.5 py-1 text-xs font-semibold text-indigo-700 shadow-xs">
-              <span className="flex h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
-              <span>Zero-judgment academic doubt resolution</span>
+            <div className="flex items-center gap-3">
+              <Logo height={38} />
+              <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50/80 px-3.5 py-1 text-xs font-semibold text-indigo-700 shadow-xs">
+                <span className="flex h-2 w-2 rounded-full bg-indigo-600 animate-pulse" />
+                <span>Zero-judgment academic doubt resolution</span>
+              </div>
             </div>
 
             <h1

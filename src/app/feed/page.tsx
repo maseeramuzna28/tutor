@@ -14,6 +14,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import MathStepRenderer from "@/components/MathStepRenderer";
+import TutoLoader from "@/components/TutoLoader";
 
 export default function FeedPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
@@ -160,6 +161,9 @@ export default function FeedPage() {
       <div className="space-y-5">
         {loading ? (
           <div className="space-y-4">
+            <div className="flex items-center justify-center py-4 bg-white/70 rounded-xl border border-slate-200/80 shadow-2xs">
+              <TutoLoader variant="voice" size="sm" color="indigo" label="Loading peer discussion feed…" />
+            </div>
             {[1, 2, 3].map((i) => (
               <div key={i} className="craft-panel p-6 animate-pulse space-y-3">
                 <div className="flex justify-between">
