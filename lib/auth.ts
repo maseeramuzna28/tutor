@@ -15,7 +15,7 @@ export interface AuthContext {
 export async function getAuthContext(req: NextRequest): Promise<AuthContext | null> {
   // 1. Try Supabase Auth from cookies or Authorization header
   try {
-    const supabase = createServerSupabaseClient(req);
+    const supabase = await createServerSupabaseClient(req);
     const { data: { user }, error } = await supabase.auth.getUser();
 
     if (user && !error) {
@@ -29,7 +29,7 @@ export async function getAuthContext(req: NextRequest): Promise<AuthContext | nu
       if (!profile) {
         // Auto-provision profile if auth user exists but public profile not yet populated
         const defaultName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'Tuto Student';
-        const defaultRole: UserRole = (user.user_metadata?.role === 'faculty') ? 'faculty' : 'student';
+        const defaultRole: UserRole = 'student';
         const defaultCollege = user.user_metadata?.college || 'National Institute of Technology';
 
         const { data: newProfile } = await admin
@@ -58,8 +58,10 @@ export async function getAuthContext(req: NextRequest): Promise<AuthContext | nu
     // Supabase auth lookup failed; continue to dev header check
   }
 
-  // 2. Fallback for testing/demo environments: x-user-id header
-  const devUserId = req.headers.get('x-user-id');
+  // 2. Allow the demo identity header only outside production.
+  const devUserId = process.env.NODE_ENV === 'production'
+    ? null
+    : req.headers.get('x-user-id');
   if (devUserId) {
     try {
       const admin = createAdminClient();

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Mic,
   Send,
@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   RotateCcw,
   Volume2,
+  Square,
   Lock,
   Globe,
   Plus,
@@ -22,6 +23,10 @@ import {
   ChevronRight,
   RefreshCw
 } from 'lucide-react';
+import {
+  BrowserSpeechRecognition,
+  getSpeechRecognitionConstructor,
+} from '@/lib/voice/browserSpeech';
 
 export default function Home() {
   // Current user demo context (switchable between Student 1: Aarav (Mangaluru), Student 2: Riya (Pune), Faculty: Dr. Rao)
@@ -48,6 +53,12 @@ export default function Home() {
   const [pulseData, setPulseData] = useState<any>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceMessage, setVoiceMessage] = useState<string | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const solveInProgressRef = useRef(false);
+  const conversationRef = useRef<{ role: 'user' | 'assistant'; content: string }[]>([]);
 
   // Helper headers for user context
   const authHeaders = {
@@ -131,63 +142,154 @@ export default function Home() {
     if (activeTab === 'pulse') loadPulse();
   }, [currentUser, activeTab, leaderboardScope]);
 
-  // Voice speech synthesis
-  const speakText = (text: string) => {
+  useEffect(() => () => {
+    const recognition = recognitionRef.current;
+    recognitionRef.current = null;
+    if (recognition) {
+      recognition.onstart = null;
+      recognition.onend = null;
+      recognition.onerror = null;
+      recognition.onresult = null;
+      recognition.abort();
+    }
+
+    utteranceRef.current = null;
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.lang = 'en-IN';
-      window.speechSynthesis.speak(utterance);
     }
+  }, []);
+
+  // Voice speech synthesis
+  const speakText = (text: string) => {
+    if (!('speechSynthesis' in window) || typeof SpeechSynthesisUtterance === 'undefined') {
+      setVoiceMessage('Spoken playback is not supported in this browser. You can read the response above.');
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.lang = 'en-IN';
+    utterance.onstart = () => setIsSpeaking(true);
+    utterance.onend = () => {
+      if (utteranceRef.current === utterance) {
+        utteranceRef.current = null;
+        setIsSpeaking(false);
+      }
+    };
+    utterance.onerror = () => {
+      if (utteranceRef.current === utterance) {
+        utteranceRef.current = null;
+        setIsSpeaking(false);
+        setVoiceMessage('Speech playback stopped or could not be completed.');
+      }
+    };
+    utteranceRef.current = utterance;
+    setVoiceMessage(null);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const stopSpeaking = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    utteranceRef.current = null;
+    setIsSpeaking(false);
   };
 
   // Voice input via browser Web Speech API
   const toggleListening = () => {
     if (isListening) {
-      setIsListening(false);
+      try {
+        recognitionRef.current?.stop();
+      } catch {
+        recognitionRef.current?.abort();
+        recognitionRef.current = null;
+        setIsListening(false);
+      }
       return;
     }
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Web Speech API is not supported in this browser. Please type your doubt.');
+
+    if (recognitionRef.current) {
       return;
     }
-    const recognition = new SpeechRecognition();
+
+    const Recognition = getSpeechRecognitionConstructor(window);
+    if (!Recognition) {
+      setVoiceMessage('Voice input is unavailable in this browser. Please type your doubt in the box.');
+      return;
+    }
+
+    let receivedTranscript = false;
+    let recognitionError: string | null = null;
+    const recognition = new Recognition();
+    recognitionRef.current = recognition;
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.lang = 'en-IN';
 
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
-    recognition.onerror = () => setIsListening(false);
-    recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript;
-      setQuestionText(transcript);
-      setIsListening(false);
+    recognition.onstart = () => {
+      setVoiceMessage(null);
+      setIsListening(true);
     };
-    recognition.start();
+    recognition.onend = () => {
+      if (recognitionRef.current === recognition) {
+        recognitionRef.current = null;
+      }
+      setIsListening(false);
+      if (!receivedTranscript && !recognitionError) {
+        setVoiceMessage('No speech was recognized. Please try again or type your doubt.');
+      }
+    };
+    recognition.onerror = (event) => {
+      recognitionError = event.error;
+      setIsListening(false);
+      const errorMessages: Record<string, string> = {
+        'not-allowed': 'Microphone access was denied. Allow microphone access or type your doubt.',
+        'service-not-allowed': 'Speech recognition is blocked by the browser. Please type your doubt.',
+        'no-speech': 'No speech was detected. Please try again or type your doubt.',
+        network: 'The browser speech service is unavailable. Please try again or type your doubt.',
+        aborted: 'Voice input was interrupted. You can try again or type your doubt.',
+      };
+      setVoiceMessage(errorMessages[event.error] || 'Voice input failed. Please try again or type your doubt.');
+    };
+    recognition.onresult = (event) => {
+      if (receivedTranscript) return;
+      const result = event.results[event.resultIndex];
+      const transcript = result?.[0]?.transcript?.trim();
+      if (!transcript) {
+        setVoiceMessage('No speech was recognized. Please try again or type your doubt.');
+        return;
+      }
+      receivedTranscript = true;
+      setQuestionText(transcript);
+      setVoiceMessage(null);
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      recognitionRef.current = null;
+      setIsListening(false);
+      setVoiceMessage('Could not start voice input. Check microphone access or type your doubt.');
+    }
   };
 
   // 1 & 2. Submit doubt to AI Tutor
   const handleSolve = async (chosenStyle = style) => {
-    if (!questionText.trim()) return;
+    if (solveInProgressRef.current || !questionText.trim()) return;
+    solveInProgressRef.current = true;
     setIsSolving(true);
     setStatusMessage(null);
     try {
-      // Check question detection first
-      await fetch('/api/detect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: questionText }),
-      });
-
       const res = await fetch('/api/solve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: questionText,
           style: chosenStyle === 'standard' ? undefined : chosenStyle,
+          conversation: conversationRef.current,
         }),
       });
 
@@ -198,6 +300,27 @@ export default function Home() {
 
       const data = await res.json();
       setSolution(data);
+      conversationRef.current = [
+        ...conversationRef.current,
+        { role: 'user' as const, content: questionText.trim() },
+        {
+          role: 'assistant' as const,
+          content: [
+            data.response,
+            ...(Array.isArray(data.steps)
+              ? data.steps.map((step: any) => `${step.title}: ${step.explanation}`)
+              : []),
+          ].join('\n').slice(0, 2000),
+        },
+      ].slice(-6);
+
+      if (!['question', 'learning_request', 'clarification'].includes(data.intent)) {
+        setSavedQuestionId(null);
+        setIsAnonymousPublished(false);
+        setResolutionStatus('open');
+        setStatusMessage(null);
+        return;
+      }
 
       // Save question as private in DB (+5 points)
       const saveRes = await fetch('/api/questions', {
@@ -225,6 +348,7 @@ export default function Home() {
     } catch (e: any) {
       setStatusMessage(`Error: ${e.message}`);
     } finally {
+      solveInProgressRef.current = false;
       setIsSolving(false);
     }
   };
@@ -483,7 +607,10 @@ export default function Home() {
             <div className="relative">
               <textarea
                 value={questionText}
-                onChange={(e) => setQuestionText(e.target.value)}
+                onChange={(e) => {
+                  setQuestionText(e.target.value);
+                  setVoiceMessage(null);
+                }}
                 placeholder="Ask your academic doubt (e.g., calculus, data structures, circuits, or microeconomics)..."
                 rows={3}
                 className="w-full p-4 pr-24 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none text-slate-800 text-sm"
@@ -492,10 +619,12 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={toggleListening}
+                  aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+                  disabled={isSolving}
                   className={`p-2 rounded-lg border transition ${
                     isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                   }`}
-                  title="Speak via voice"
+                  title={isListening ? 'Stop voice input' : 'Speak your doubt'}
                 >
                   <Mic className="w-4 h-4" />
                 </button>
@@ -510,6 +639,12 @@ export default function Home() {
                 </button>
               </div>
             </div>
+            {voiceMessage && (
+              <p role="status" className="mt-2 text-xs text-amber-700">{voiceMessage}</p>
+            )}
+            {isListening && (
+              <p role="status" className="mt-2 text-xs text-emerald-700">Listening… speak your doubt now.</p>
+            )}
 
             {/* Quick Demo Pre-fills */}
             <div className="flex gap-2 mt-3 flex-wrap items-center">
@@ -538,6 +673,27 @@ export default function Home() {
           {/* Solution Display */}
           {solution && (
             <div className="bg-white p-6 rounded-xl border shadow-sm space-y-6">
+              {['greeting', 'acknowledgement', 'unrelated'].includes(solution.intent) ? (
+                <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100">
+                  {solution.topic && (
+                    <p className="text-xs font-bold text-emerald-800 uppercase tracking-wide mb-1">
+                      {solution.topic}
+                    </p>
+                  )}
+                  <p className="text-sm font-medium text-slate-800 leading-relaxed">
+                    {solution.response}
+                  </p>
+                  <button
+                    onClick={() => isSpeaking ? stopSpeaking() : speakText(solution.response)}
+                    aria-label={isSpeaking ? 'Stop response playback' : 'Play response aloud'}
+                    className="mt-3 p-1 rounded bg-emerald-200/50 hover:bg-emerald-200 text-emerald-800"
+                    title={isSpeaking ? 'Stop playback' : 'Listen aloud'}
+                  >
+                    {isSpeaking ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              ) : (
+                <>
               {/* Spoken Answer & Audio */}
               <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-100 flex items-start justify-between gap-4">
                 <div>
@@ -546,12 +702,14 @@ export default function Home() {
                       Spoken Summary
                     </span>
                     <button
-                      onClick={() => speakText(solution.spoken_answer)}
+                      onClick={() => isSpeaking ? stopSpeaking() : speakText(solution.spoken_answer)}
+                      aria-label={isSpeaking ? 'Stop spoken summary' : 'Play spoken summary'}
                       className="p-1 rounded bg-emerald-200/50 hover:bg-emerald-200 text-emerald-800"
-                      title="Listen aloud"
+                      title={isSpeaking ? 'Stop playback' : 'Listen aloud'}
                     >
-                      <Volume2 className="w-3.5 h-3.5" />
+                      {isSpeaking ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                     </button>
+                    {isSpeaking && <span role="status" className="text-[10px] text-emerald-700">Speaking…</span>}
                   </div>
                   <p className="text-sm font-medium text-slate-800 leading-relaxed">
                     {solution.spoken_answer}
@@ -626,18 +784,21 @@ export default function Home() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-xs font-semibold text-slate-500">Still Stuck? Try:</span>
                   <button
+                    disabled={isSolving}
                     onClick={() => handleStillStuck('simpler')}
                     className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium border"
                   >
                     Simpler Terms
                   </button>
                   <button
+                    disabled={isSolving}
                     onClick={() => handleStillStuck('analogy')}
                     className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium border"
                   >
                     Everyday Analogy
                   </button>
                   <button
+                    disabled={isSolving}
                     onClick={() => handleStillStuck('worked_example')}
                     className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-medium border"
                   >
@@ -648,6 +809,7 @@ export default function Home() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={handleMarkResolved}
+                    disabled={isSolving}
                     className={`text-xs px-3 py-1.5 rounded-lg font-bold border flex items-center gap-1.5 transition ${
                       resolutionStatus === 'resolved'
                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
@@ -660,7 +822,7 @@ export default function Home() {
 
                   <button
                     onClick={handlePublishAnonymous}
-                    disabled={isAnonymousPublished}
+                    disabled={isAnonymousPublished || isSolving}
                     className={`text-xs px-3.5 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition ${
                       isAnonymousPublished
                         ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -672,6 +834,8 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+                </>
+              )}
             </div>
           )}
         </div>

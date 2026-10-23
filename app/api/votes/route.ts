@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
     // 4. Award +2 points to the author of the target
     const award = await awardPoints(
       authorId,
-      `RECEIVE_UPVOTE:${target_type}:${target_id}`,
+      `RECEIVE_UPVOTE:${target_type}:${target_id}:FROM:${auth.user.id}`,
       REWARD_AMOUNTS.RECEIVE_UPVOTE
     );
 

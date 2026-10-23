@@ -10,6 +10,7 @@ export interface DbStore {
   contributions: any[];
   points_log: any[];
   reports: any[];
+  ai_rate_limits: any[];
 }
 
 // Initial demo seeded records
@@ -179,6 +180,7 @@ const initialStore: DbStore = {
     },
   ],
   reports: [],
+  ai_rate_limits: [],
 };
 
 // Global singleton in-memory database instance
@@ -194,10 +196,60 @@ class InMemoryDatabase {
   }
 
   rpc(functionName: string, params: any) {
+    if (functionName === 'consume_ai_rate_limit') {
+      const { p_key, p_window_seconds, p_max_requests } = params;
+      const now = Date.now();
+      let entry = this.store.ai_rate_limits.find((item) => item.key === p_key);
+
+      if (!entry || now - new Date(entry.window_started_at).getTime() >= p_window_seconds * 1000) {
+        entry = {
+          key: p_key,
+          window_started_at: new Date(now).toISOString(),
+          request_count: 0,
+        };
+        this.store.ai_rate_limits = this.store.ai_rate_limits.filter(
+          (item) => now - new Date(item.window_started_at).getTime() < 24 * 60 * 60 * 1000
+        );
+        this.store.ai_rate_limits.push(entry);
+      }
+
+      entry.request_count += 1;
+      return Promise.resolve({
+        data: {
+          allowed: entry.request_count <= p_max_requests,
+          remaining: Math.max(0, p_max_requests - entry.request_count),
+        },
+        error: null,
+      });
+    }
+
     if (functionName === 'award_user_points') {
       const { p_user_id, p_action, p_points } = params;
       const startOfDay = new Date();
       startOfDay.setUTCHours(0, 0, 0, 0);
+
+      // Check if action already awarded
+      const alreadyAwarded = this.store.points_log.some(
+        (l) => l.user_id === p_user_id && l.action === p_action
+      );
+      if (alreadyAwarded) {
+        let user = this.store.users.find((u) => u.id === p_user_id);
+        const logsToday = this.store.points_log.filter(
+          (l) => l.user_id === p_user_id && new Date(l.created_at) >= startOfDay
+        );
+        const pointsToday = logsToday.reduce((sum, l) => sum + (l.points || 0), 0);
+        return Promise.resolve({
+          data: {
+            awarded: 0,
+            requested: p_points,
+            points_today: pointsToday,
+            daily_cap: 100,
+            total_points: user?.points || 0,
+            duplicate: true,
+          },
+          error: null,
+        });
+      }
 
       const logsToday = this.store.points_log.filter(
         (l) => l.user_id === p_user_id && new Date(l.created_at) >= startOfDay

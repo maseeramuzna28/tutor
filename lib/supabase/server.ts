@@ -3,8 +3,8 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 
-export function createServerSupabaseClient(req?: NextRequest) {
-  const cookieStore = cookies();
+export async function createServerSupabaseClient(req?: NextRequest) {
+  const cookieStore = await cookies();
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
@@ -42,7 +42,7 @@ export function createServerSupabaseClient(req?: NextRequest) {
 }
 
 export async function getAuthenticatedUser(req?: NextRequest) {
-  const supabase = createServerSupabaseClient(req);
+  const supabase = await createServerSupabaseClient(req);
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
     return null;

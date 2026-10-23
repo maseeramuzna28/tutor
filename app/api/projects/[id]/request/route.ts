@@ -6,15 +6,15 @@ import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: projectId } = await params;
     const auth = await getAuthContext(req);
     if (!auth) {
       return apiError('Unauthorized. Please log in to join a project.', 401);
     }
 
-    const projectId = params.id;
     if (!projectId) {
       return apiError('Project ID is required.', 400);
     }

@@ -7,9 +7,10 @@ import { awardPoints, REWARD_AMOUNTS } from '@/lib/points/engine';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: answerId } = await params;
     const auth = await getAuthContext(req);
     if (!auth) {
       return apiError('Unauthorized. Please log in.', 401);
@@ -20,7 +21,6 @@ export async function POST(
       return apiError('Forbidden. Only faculty members can verify academic answers.', 403);
     }
 
-    const answerId = params.id;
     if (!answerId) {
       return apiError('Answer ID is required.', 400);
     }

@@ -5,7 +5,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { awardPoints, REWARD_AMOUNTS, DAILY_POINTS_CAP } from '../lib/points/engine.ts';
 import { containsProfanity, REPORT_THRESHOLD_HIDE } from '../lib/moderation/profanity.ts';
-import { detectQuestion } from '../lib/voice/speech.ts';
+import { getSpeechRecognitionConstructor } from '../lib/voice/browserSpeech.ts';
+import { parseTutorResponse, solveAcademicDoubt } from '../lib/ai/gemini.ts';
 import { getInMemoryDb } from '../lib/supabase/inMemoryStore.ts';
 
 const db = getInMemoryDb();
@@ -21,18 +22,83 @@ test('1. Moderation & Profanity Filtering', () => {
   assert.equal(REPORT_THRESHOLD_HIDE, 3);
 });
 
-test('2. Voice Question Detection & Fail-Open Guarantee', async () => {
-  // Question with question mark
-  const r1 = await detectQuestion('Why is the sky blue?');
-  assert.equal(r1.isQuestion, true);
+test('2. Gemini intent responses cover learning, conversational, and contextual messages', () => {
+  const academicReply = {
+    intent: 'learning_request',
+    topic: 'Binary search',
+    response: 'Binary search repeatedly halves a sorted search range.',
+    concept: 'Binary search',
+    root_cause: 'Sorted data and interval halving',
+    refresher: 'Binary search requires sorted data.',
+    subject: 'Computer Science',
+    steps: [{ step: 1, title: 'Check the middle', explanation: 'Compare the target with the middle element.' }],
+  };
+  const cases = [
+    ['What is an operating system?', 'question'],
+    ['Explain deadlocks simply.', 'learning_request'],
+    ["I don't understand binary search.", 'learning_request'],
+    ['Can you explain that with an example?', 'clarification'],
+  ];
 
-  // Question starting with question word
-  const r2 = await detectQuestion('Explain how mergesort operates');
-  assert.equal(r2.isQuestion, true);
+  for (const [question, intent] of cases) {
+    const parsed = parseTutorResponse(JSON.stringify({ ...academicReply, intent }), question);
+    assert.equal(parsed.intent, intent);
+    assert.equal(parsed.response, academicReply.response);
+    assert.equal(parsed.steps.length, 1);
+  }
 
-  // Fallback / fail open on arbitrary sentence
-  const r3 = await detectQuestion('I am studying for exams');
-  assert.equal(r3.isQuestion, true);
+  const greeting = parseTutorResponse(
+    JSON.stringify({ intent: 'greeting', topic: '', response: 'Hi! What would you like to learn today?' }),
+    'Hi Tuto!'
+  );
+  assert.equal(greeting.intent, 'greeting');
+  assert.equal(greeting.response, 'Hi! What would you like to learn today?');
+
+  const acknowledgement = parseTutorResponse(
+    JSON.stringify({ intent: 'acknowledgement', topic: '', response: 'You are welcome!' }),
+    'Thanks, that helped.'
+  );
+  assert.equal(acknowledgement.intent, 'acknowledgement');
+
+  assert.throws(() => parseTutorResponse('not json', 'question'), /invalid structured response/i);
+  assert.throws(
+    () => parseTutorResponse(JSON.stringify({ intent: 'made_up', response: 'answer' }), 'question'),
+    /invalid intent/i
+  );
+  assert.throws(
+    () => parseTutorResponse(JSON.stringify({ ...academicReply, steps: [] }), 'question'),
+    /steps list/i
+  );
+});
+
+test('2a. Missing Gemini key fails explicitly without fabricating an answer', async () => {
+  const previousKey = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    await assert.rejects(
+      solveAcademicDoubt({ question: 'Explain binary search.' }),
+      /GEMINI_API_KEY is not configured/
+    );
+  } finally {
+    if (previousKey !== undefined) {
+      process.env.GEMINI_API_KEY = previousKey;
+    }
+  }
+});
+
+test('2a. Speech recognition feature detection supports standard and prefixed browsers', () => {
+  const standardRecognition = class {};
+  const prefixedRecognition = class {};
+
+  assert.equal(
+    getSpeechRecognitionConstructor({ SpeechRecognition: standardRecognition }),
+    standardRecognition
+  );
+  assert.equal(
+    getSpeechRecognitionConstructor({ webkitSpeechRecognition: prefixedRecognition }),
+    prefixedRecognition
+  );
+  assert.equal(getSpeechRecognitionConstructor({}), undefined);
 });
 
 test('3. Gamification Engine & Daily Cap (100 points/day)', async () => {
@@ -42,6 +108,11 @@ test('3. Gamification Engine & Daily Cap (100 points/day)', async () => {
   const res1 = await awardPoints(TEST_USER, 'TEST_ACTION_1', 50);
   assert.equal(res1.awarded, 50);
   assert.equal(res1.pointsToday, 50);
+
+  // Replaying the same action must not award points twice
+  const duplicate = await awardPoints(TEST_USER, 'TEST_ACTION_1', 50);
+  assert.equal(duplicate.awarded, 0);
+  assert.equal(duplicate.pointsToday, 50);
 
   // Award another 40 points (total 90)
   const res2 = await awardPoints(TEST_USER, 'TEST_ACTION_2', 40);
@@ -57,6 +128,18 @@ test('3. Gamification Engine & Daily Cap (100 points/day)', async () => {
   const res4 = await awardPoints(TEST_USER, 'TEST_ACTION_4', 25);
   assert.equal(res4.awarded, 0);
   assert.equal(res4.pointsToday, 100);
+});
+
+test('3a. Concurrent rewards respect the daily cap', async () => {
+  const TEST_USER = '00000000-0000-0000-0000-000000000098';
+  const results = await Promise.all(
+    Array.from({ length: 20 }, (_, index) =>
+      awardPoints(TEST_USER, `CONCURRENT_ACTION_${index}`, 10)
+    )
+  );
+
+  assert.equal(results.reduce((sum, result) => sum + result.awarded, 0), DAILY_POINTS_CAP);
+  assert.ok(results.every((result) => result.pointsToday <= DAILY_POINTS_CAP));
 });
 
 test('4. Question Creation, Private Isolation, and History', async () => {

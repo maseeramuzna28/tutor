@@ -7,15 +7,15 @@ import { awardPoints, REWARD_AMOUNTS } from '@/lib/points/engine';
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: contributionId } = await params;
     const auth = await getAuthContext(req);
     if (!auth) {
       return apiError('Unauthorized. Please log in.', 401);
     }
 
-    const contributionId = params.id;
     if (!contributionId) {
       return apiError('Contribution ID is required.', 400);
     }
@@ -79,7 +79,7 @@ export async function POST(
     if (status === 'accepted' && !wasAlreadyAccepted) {
       const award = await awardPoints(
         contribution.user_id,
-        `ACCEPTED_CONTRIBUTION:${contribution.project_id}`,
+        `ACCEPTED_CONTRIBUTION:${contribution.project_id}:${contribution.user_id}`,
         REWARD_AMOUNTS.ACCEPTED_CONTRIBUTION
       );
       pointsAwarded = award.awarded;

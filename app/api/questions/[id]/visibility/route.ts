@@ -7,15 +7,15 @@ import { awardPoints, REWARD_AMOUNTS } from '@/lib/points/engine';
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: questionId } = await params;
     const auth = await getAuthContext(req);
     if (!auth) {
       return apiError('Unauthorized. Please log in.', 401);
     }
 
-    const questionId = params.id;
     if (!questionId) {
       return apiError('Question ID is required.', 400);
     }

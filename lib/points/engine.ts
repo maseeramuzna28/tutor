@@ -32,7 +32,7 @@ export async function awardPoints(
 ): Promise<AwardResult> {
   const admin = createAdminClient();
 
-  // Try using the PostgreSQL stored procedure if available
+  // The database function performs the idempotency and daily-cap checks atomically.
   try {
     const { data, error } = await admin.rpc('award_user_points', {
       p_user_id: userId,
@@ -40,81 +40,28 @@ export async function awardPoints(
       p_points: pointsToAward,
     });
 
-    if (!error && data) {
-      return {
-        awarded: data.awarded,
-        requested: data.requested,
-        pointsToday: data.points_today,
-        dailyCap: data.daily_cap,
-        totalPoints: data.total_points,
-      };
+    if (error) {
+      console.error('Failed to award points via database function:', error);
+      throw new Error('Failed to award points.');
     }
-  } catch (rpcError) {
-    // Fall back to server-side transactional application if RPC is not yet created in DB
-  }
-
-  // Fallback implementation: Calculate daily sum and update atomically
-  const startOfDay = new Date();
-  startOfDay.setUTCHours(0, 0, 0, 0);
-
-  // 1. Fetch points earned today
-  const { data: todayLogs, error: logError } = await admin
-    .from('points_log')
-    .select('points')
-    .eq('user_id', userId)
-    .gte('created_at', startOfDay.toISOString());
-
-  if (logError) {
-    console.error('Error fetching today points log:', logError);
-  }
-
-  const currentPointsToday = (todayLogs || []).reduce((acc: number, log: any) => acc + (log.points || 0), 0);
-  const allowablePoints = Math.max(0, Math.min(pointsToAward, DAILY_POINTS_CAP - currentPointsToday));
-
-  if (allowablePoints <= 0) {
-    // Cap reached, fetch current total
-    const { data: user } = await admin
-      .from('users')
-      .select('points')
-      .eq('id', userId)
-      .single();
+    if (!data) {
+      throw new Error('Points database function returned no result.');
+    }
 
     return {
-      awarded: 0,
-      requested: pointsToAward,
-      pointsToday: currentPointsToday,
-      dailyCap: DAILY_POINTS_CAP,
-      totalPoints: user?.points || 0,
+      awarded: data.awarded,
+      requested: data.requested,
+      pointsToday: data.points_today,
+      dailyCap: data.daily_cap,
+      totalPoints: data.total_points,
     };
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Failed to award points.') {
+      throw error;
+    }
+    console.error('Failed to execute points database function:', error);
+    throw new Error('Failed to award points.');
   }
-
-  // 2. Insert into points_log
-  await admin.from('points_log').insert({
-    user_id: userId,
-    action,
-    points: allowablePoints,
-  });
-
-  // 3. Increment user's point total
-  const { data: user } = await admin
-    .from('users')
-    .select('points')
-    .eq('id', userId)
-    .single();
-
-  const newTotal = (user?.points || 0) + allowablePoints;
-  await admin
-    .from('users')
-    .update({ points: newTotal })
-    .eq('id', userId);
-
-  return {
-    awarded: allowablePoints,
-    requested: pointsToAward,
-    pointsToday: currentPointsToday + allowablePoints,
-    dailyCap: DAILY_POINTS_CAP,
-    totalPoints: newTotal,
-  };
 }
 
 /**

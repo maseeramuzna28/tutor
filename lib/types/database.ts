@@ -130,9 +130,32 @@ export interface Badge {
 export interface SolveRequest {
   question: string;
   style?: 'simpler' | 'analogy' | 'worked_example';
+  conversation?: {
+    role: 'user' | 'assistant';
+    content: string;
+  }[];
 }
 
-export interface SolveResponse {
+export type TutorIntent =
+  | 'question'
+  | 'learning_request'
+  | 'greeting'
+  | 'acknowledgement'
+  | 'clarification'
+  | 'unrelated';
+
+interface TutorResponseBase {
+  intent: TutorIntent;
+  topic: string;
+  response: string;
+}
+
+export interface ConversationalSolveResponse extends TutorResponseBase {
+  intent: 'greeting' | 'acknowledgement' | 'unrelated';
+}
+
+export interface LearningSolveResponse extends TutorResponseBase {
+  intent: 'question' | 'learning_request' | 'clarification';
   spoken_answer: string;
   steps: QuestionStep[];
   concept: string;
@@ -141,6 +164,8 @@ export interface SolveResponse {
   subject: string;
   disclaimer?: string;
 }
+
+export type SolveResponse = ConversationalSolveResponse | LearningSolveResponse;
 
 export interface FacultyPulseResponse {
   period_days: number;

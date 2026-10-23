@@ -22,16 +22,19 @@
   },
   "homepage": "https://github.com/maseeramuzna28/tutor#readme",
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^2.31.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.118.0",
     "clsx": "^2.1.1",
     "katex": "^0.19.0",
     "lucide-react": "^1.61.0",
-    "next": "^14.2.35",
+    "next": "^15.5.28",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^3.7.0"
+  },
+  "overrides": {
+    "postcss": "$postcss"
   },
   "devDependencies": {
     "@types/katex": "^0.16.8",

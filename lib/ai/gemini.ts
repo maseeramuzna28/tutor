@@ -1,115 +1,193 @@
-// Google Gemini Root-Cause Tutor Service
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { SolveRequest, SolveResponse, QuestionStep } from '../types/database';
+import { GoogleGenAI } from '@google/genai';
+import {
+  SolveRequest,
+  SolveResponse,
+  QuestionStep,
+  TutorIntent,
+  LearningSolveResponse,
+} from '../types/database';
 
-const SYSTEM_INSTRUCTION = `You are TUTO, a world-class, empathetic Root-Cause Academic AI Tutor for college students in India.
-Your mission:
-1. Explain academic problems step by step with crystal clarity, breaking down complex ideas.
-2. Identify the MAIN CONCEPT being tested.
-3. Identify the ROOT CAUSE: the likely prerequisite gap or misconception that typically makes students stumble on this problem. (Always frame it respectfully as a "Likely prerequisite gap").
-4. Provide a SHORT REFRESHER explaining that prerequisite concept in 2-3 sentences.
-5. Provide a CONCISE SPOKEN ANSWER (1-3 sentences) designed to be read out loud via text-to-speech.
-6. Format math expressions using KaTeX syntax: inline with $...$ or display with $$...$$.
-7. Format programming code using markdown code blocks with language specifiers.
-8. Support subjects across Mathematics, Computer Science, Electrical/Mechanical Engineering, Economics, Biology, Physics, Chemistry, Law, and Medicine.
-
-RESPONSE FORMAT:
-You MUST respond ONLY with a valid JSON object matching this schema:
+const SYSTEM_INSTRUCTION = `You are TUTO, an empathetic academic tutor for college students in India.
+For every user message, first classify its intent as exactly one of: question, learning_request, greeting, acknowledgement, clarification, unrelated.
+Use the recent conversation context to resolve follow-ups such as "explain that with an example". Do not treat an unrelated message as an academic request.
+Reply naturally and concisely to greetings and acknowledgements. Ask a short helpful follow-up for unrelated messages, without pretending they are academic questions.
+For question, learning_request, and clarification intents, explain accurately and step by step. Identify the primary concept and likely prerequisite gap; include an example when useful.
+Format mathematics with KaTeX-compatible LaTeX ($...$ or $$...$$) and code in fenced markdown blocks.
+Support Mathematics, Computer Science, Engineering, Economics, Biology, Physics, Chemistry, Law, and Medicine.
+Treat medical and legal questions as educational only, not professional advice.
+Return only a JSON object with this shape:
 {
-  "spoken_answer": "A friendly 1-3 sentence summary suitable for audio playback",
-  "concept": "The primary topic or principle (e.g., 'Integration by Parts', 'Deadlock Detection in OS', 'Marginal Cost vs Average Cost')",
-  "root_cause": "Likely prerequisite gap (e.g., 'Product Rule of Differentiation', 'Resource Allocation Graph cycles', 'Derivative of Total Cost')",
-  "refresher": "A quick 2-3 sentence refresher on that prerequisite foundation",
-  "subject": "Primary academic domain (e.g. 'Mathematics', 'Computer Science', 'Economics', 'Medicine', 'Law')",
+  "intent": "one of the six intent labels",
+  "topic": "Short topic label, or empty string if not applicable",
+  "response": "The user-facing response; concise conversational reply for non-academic intents, answer summary for learning intents",
+  "concept": "Primary concept for academic intents, otherwise empty string",
+  "root_cause": "Likely prerequisite gap for academic intents, otherwise empty string",
+  "refresher": "Short refresher for academic intents, otherwise empty string",
+  "subject": "Primary academic domain for academic intents, otherwise empty string",
   "steps": [
     {
       "step": 1,
       "title": "Title for this step",
-      "explanation": "Detailed explanation using KaTeX math or formatted text",
+      "explanation": "Detailed explanation",
       "equation_or_code": "Optional math equation or code snippet"
     }
   ]
 }`;
 
-export async function solveAcademicDoubt(input: SolveRequest, overrideApiKey?: string | null): Promise<SolveResponse> {
-  const apiKey = overrideApiKey || process.env.GEMINI_API_KEY;
+const styles = {
+  simpler: 'Use plain language and intuitive step-by-step reasoning.',
+  analogy: 'Explain first with an everyday analogy, then give the technical steps.',
+  worked_example: 'Include a complete worked example with intermediate calculations or runnable code.',
+} as const;
 
-  if (!apiKey || apiKey === 'your-gemini-api-key') {
-    throw new Error('GEMINI_API_KEY is not configured in the server environment. Please set GEMINI_API_KEY in your .env.local file.');
+const intentValues = new Set<TutorIntent>([
+  'question',
+  'learning_request',
+  'greeting',
+  'acknowledgement',
+  'clarification',
+  'unrelated',
+]);
+const learningIntents = new Set<TutorIntent>(['question', 'learning_request', 'clarification']);
+const MAX_CONVERSATION_MESSAGES = 6;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function requiredText(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`Gemini returned an invalid ${field} field.`);
+  }
+  return value.trim();
+}
+
+export function parseTutorResponse(responseText: string, question: string): SolveResponse {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch {
+    throw new Error('Gemini returned an invalid structured response.');
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey);
-  // Default to gemini-1.5-flash or gemini-2.0-flash for high quality and speed
-  const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      responseMimeType: 'application/json',
-      temperature: 0.3,
-    },
-    systemInstruction: SYSTEM_INSTRUCTION,
+  if (!isRecord(parsed) || typeof parsed.intent !== 'string' || !intentValues.has(parsed.intent as TutorIntent)) {
+    throw new Error('Gemini returned an invalid intent.');
+  }
+
+  const intent = parsed.intent as TutorIntent;
+  const topic = typeof parsed.topic === 'string' ? parsed.topic.trim() : '';
+  const response = requiredText(parsed.response, 'response');
+
+  if (intent === 'greeting' || intent === 'acknowledgement' || intent === 'unrelated') {
+    return { intent, topic, response };
+  }
+
+  if (!Array.isArray(parsed.steps) || parsed.steps.length === 0 || parsed.steps.length > 12) {
+    throw new Error('Gemini returned an invalid explanation steps list.');
+  }
+
+  const steps: QuestionStep[] = parsed.steps.map((step, index) => {
+    if (!isRecord(step)) {
+      throw new Error('Gemini returned an invalid explanation step.');
+    }
+
+    return {
+      step: typeof step.step === 'number' && Number.isInteger(step.step) ? step.step : index + 1,
+      title: requiredText(step.title, 'step title'),
+      explanation: requiredText(step.explanation, 'step explanation'),
+      equation_or_code: typeof step.equation_or_code === 'string' ? step.equation_or_code : undefined,
+    };
   });
 
-  let stylePrompt = '';
-  if (input.style === 'simpler') {
-    stylePrompt = '\n\nIMPORTANT: The student is still stuck. Provide a SIMPLER explanation using plain language, intuitive step-by-step reasoning, and breakdown of elementary terms.';
-  } else if (input.style === 'analogy') {
-    stylePrompt = '\n\nIMPORTANT: Explain this concept using an everyday, intuitive ANALOGY that any college student can relate to, followed by the technical steps.';
-  } else if (input.style === 'worked_example') {
-    stylePrompt = '\n\nIMPORTANT: Provide a complete, concrete WORKED EXAMPLE with numbers or a complete runnable code snippet showing each intermediate calculation.';
+  const subject = requiredText(parsed.subject, 'subject');
+  const isMedicalOrLegal = /medicine|medical|symptom|legal|law|statute/i.test(`${subject} ${question}`);
+  const learningResponse: LearningSolveResponse = {
+    intent,
+    topic,
+    response,
+    spoken_answer: response,
+    concept: requiredText(parsed.concept, 'concept'),
+    root_cause: requiredText(parsed.root_cause, 'root cause'),
+    refresher: requiredText(parsed.refresher, 'refresher'),
+    subject,
+    steps,
+    disclaimer: isMedicalOrLegal
+      ? 'Learning aid only. Not professional medical or legal advice.'
+      : 'AI-generated academic explanation. Verify key proofs and steps with course material.',
+  };
+
+  return learningResponse;
+}
+
+export async function solveAcademicDoubt(input: SolveRequest): Promise<SolveResponse> {
+  const question = typeof input?.question === 'string' ? input.question.trim() : '';
+  if (!question || question.length > 2000) {
+    throw new Error('Question must contain between 1 and 2000 characters.');
+  }
+  if (input.style && !Object.hasOwn(styles, input.style)) {
+    throw new Error('Unsupported explanation style.');
+  }
+  const conversation = input.conversation ?? [];
+  if (!Array.isArray(conversation) || conversation.length > MAX_CONVERSATION_MESSAGES ||
+      conversation.some((turn) =>
+        !isRecord(turn) ||
+        (turn.role !== 'user' && turn.role !== 'assistant') ||
+        typeof turn.content !== 'string' ||
+        turn.content.trim().length === 0 ||
+        turn.content.length > 2000
+      )) {
+    throw new Error('Conversation context is invalid.');
   }
 
-  const prompt = `Student Question / Academic Doubt:\n"${input.question}"${stylePrompt}`;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not configured in the server environment.');
+  }
+
+  const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const history = conversation.map((turn) => `${turn.role === 'user' ? 'Student' : 'TUTO'}: ${turn.content}`).join('\n');
+  const prompt = `${history ? `Recent conversation:\n${history}\n\n` : ''}Current student message:\n${question}${input.style ? `\n\n${styles[input.style]}` : ''}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
 
   try {
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: prompt,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        responseMimeType: 'application/json',
+        maxOutputTokens: 2500,
+        temperature: 0.3,
+        abortSignal: controller.signal,
+      },
+    });
 
+    const responseText = response.text;
     if (!responseText) {
       throw new Error('Gemini returned an empty response.');
     }
 
-    let parsed: any;
-    try {
-      parsed = JSON.parse(responseText);
-    } catch (parseError) {
-      // Clean up markdown block if present
-      const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      parsed = JSON.parse(cleaned);
+    return parseTutorResponse(responseText, question);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Gemini request timed out. Please try again.');
     }
 
-    // Validate structured fields
-    const steps: QuestionStep[] = Array.isArray(parsed.steps)
-      ? parsed.steps.map((s: any, idx: number) => ({
-          step: s.step || idx + 1,
-          title: s.title || `Step ${idx + 1}`,
-          explanation: s.explanation || '',
-          equation_or_code: s.equation_or_code || undefined,
-        }))
-      : [];
+    if (error instanceof Error && error.message.startsWith('Gemini returned')) {
+      throw error;
+    }
 
-    const isMedicalOrLegal =
-      (parsed.subject && (parsed.subject.toLowerCase().includes('med') || parsed.subject.toLowerCase().includes('law'))) ||
-      input.question.toLowerCase().includes('medicine') ||
-      input.question.toLowerCase().includes('symptom') ||
-      input.question.toLowerCase().includes('legal') ||
-      input.question.toLowerCase().includes('statute');
+    const status = isRecord(error) && typeof error.status === 'number' ? error.status : undefined;
+    if (status === 429) {
+      throw new Error('Gemini rate limit or quota reached. Please try again later.');
+    }
 
-    const disclaimer = isMedicalOrLegal
-      ? 'Learning aid only. Not professional medical or legal advice.'
-      : 'AI-generated academic explanation. Verify key proofs and steps with course material.';
-
-    return {
-      spoken_answer: parsed.spoken_answer || 'Here is the step-by-step breakdown of your doubt.',
-      concept: parsed.concept || 'Academic Concept',
-      root_cause: parsed.root_cause || 'Foundational prerequisite review',
-      refresher: parsed.refresher || 'Review foundational definitions and formulas.',
-      subject: parsed.subject || 'General Academics',
-      steps,
-      disclaimer,
-    };
-  } catch (error: any) {
-    console.error('Error invoking Gemini tutor:', error);
-    throw error;
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.error('Gemini request failed:', errorName);
+    throw new Error('Gemini request failed. Please try again later.');
+  } finally {
+    clearTimeout(timeout);
   }
 }

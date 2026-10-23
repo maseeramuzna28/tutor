@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     // Award +5 points for asking doubt
     const awardResult = await awardPoints(
       auth.user.id,
-      'ASK_QUESTION',
+      `ASK_QUESTION:${newQuestion.id}`,
       REWARD_AMOUNTS.ASK_QUESTION
     );
 

@@ -12,8 +12,8 @@ Faculty receive aggregate concept-confusion statistics without access to student
 
 - **Framework:** Next.js 14+ (App Router, Server-side API Route Handlers, TypeScript)
 - **Database & Auth:** Supabase PostgreSQL with strict Row Level Security (RLS)
-- **AI Root-Cause Reasoning:** Google Gemini API (`gemini-1.5-flash` / `gemini-2.0-flash`)
-- **Speech & Detection:** Gradium speech services with automatic browser Web Speech API fallback; Jev question detection with fail-open guarantee
+- **AI Root-Cause Reasoning:** Google Gemini Developer API using the supported `@google/genai` SDK and `gemini-2.5-flash` by default
+- **Speech & Detection:** Browser Web Speech recognition and synthesis where available; local academic-request intent heuristic
 - **Mathematical Rendering:** KaTeX-compatible LaTeX equations (`$...$`, `$$...$$`)
 - **Gamification Engine:** Concurrency-safe points ledger with daily cap (100 pts/day) and dynamic badge computation
 
@@ -22,7 +22,7 @@ Faculty receive aggregate concept-confusion statistics without access to student
 ## 2. Getting Started
 
 ### Prerequisites
-- Node.js v18+ (tested on Node.js v24.16.0)
+- Node.js v20+ (required by the Google Gen AI SDK; tested on Node.js v24.16.0)
 - npm v10+
 
 ### Installation
@@ -45,14 +45,15 @@ Required & optional environment variables:
 | Variable | Description | Default / Required |
 | :--- | :--- | :--- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL | Cloud Supabase URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Anon Key | Cloud Anon Key |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon or publishable key | Supabase project API keys |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase Service Role Key (Server-only) | Required for privileged points & moderation |
 | `GEMINI_API_KEY` | Google Gemini API Key | Server-side AI Tutor |
-| `GRADIUM_API_KEY` | Gradium Speech API Key | Optional (falls back to Web Speech API) |
-| `JEV_API_KEY` | Jev Question Detection API Key | Optional (fails open to true) |
+| `GEMINI_MODEL` | Gemini model identifier | `gemini-2.5-flash` |
 | `MIN_CLUSTER` | Faculty Pulse cluster threshold | `3` |
 
-*Note: In local or offline testing mode, an in-memory database store is active whenever Supabase keys are not configured, allowing tests and the demo UI to run out of the box.*
+*Note: The seeded in-memory database is only used in non-production development/test mode when no Supabase URL or service-role key is configured. Partial Supabase configuration fails explicitly instead of silently falling back. Browser speech APIs vary by browser and may use browser-provided online services; manual text input remains available.*
+
+Gemini API free-tier access, quotas, data-use terms, and model availability depend on your account and Google's current policies. Check the [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing) and [rate limits](https://ai.google.dev/gemini-api/docs/rate-limits); do not assume unlimited free production use.
 
 ---
 
@@ -76,7 +77,8 @@ The complete, version-controlled PostgreSQL migration is located at:
 1. **Via Supabase Dashboard**:
    - Open your project on [Supabase Dashboard](https://supabase.com/dashboard).
    - Navigate to the **SQL Editor**.
-   - Copy the contents of `supabase/migrations/20261023000001_initial_schema.sql` and run it.
+   - For a new project, apply `supabase/migrations/20261023000001_initial_schema.sql`, then `supabase/migrations/20261023000002_ai_rate_limits.sql`.
+   - For an existing project that already has the initial schema, apply only the additive `20261023000002_ai_rate_limits.sql` migration.
 2. **Via Supabase CLI**:
    ```bash
    supabase link --project-ref <your-project-ref>
@@ -93,12 +95,12 @@ All endpoints return JSON. Errors follow the strict format:
 ```
 
 ### AI Tutor & Speech
-- `POST /api/solve`: Root-Cause AI reasoning.
-  - Input: `{ "question": "string", "style"?: "simpler" | "analogy" | "worked_example" }`
-  - Output: `{ "spoken_answer", "steps": [], "concept", "root_cause", "refresher", "subject", "disclaimer" }`
-- `POST /api/detect`: Question detection. Returns `{ "isQuestion": true }`.
-- `POST /api/transcribe`: Audio STT transcription with Gradium/browser fallback.
-- `POST /api/speak`: TTS audio generation with Gradium/browser fallback.
+- `POST /api/solve`: One Gemini request classifies intent and creates a response, using recent conversation context when provided.
+  - Input: `{ "question": "string", "style"?: "simpler" | "analogy" | "worked_example", "conversation"?: [{ "role": "user" | "assistant", "content": "string" }] }`
+  - Output always includes `{ "intent", "topic", "response" }`. Academic intents (`question`, `learning_request`, `clarification`) additionally include `spoken_answer`, `steps`, `concept`, `root_cause`, `refresher`, `subject`, and `disclaimer`.
+- `POST /api/detect`: Retired with HTTP 410; intent classification is part of `/api/solve` so each message uses a single Gemini request.
+- `POST /api/transcribe` and `POST /api/speak`: Retired with HTTP 410; the UI uses browser speech APIs directly where available.
+- `POST /api/solve` is limited to 10 requests per client address per minute. The database-backed limiter requires the additive `supabase/migrations/20261023000002_ai_rate_limits.sql` migration. Gemini provider rate limits/quotas may additionally apply.
 
 ### Doubt Management & Feed
 - `POST /api/questions`: Submit private doubt (+5 pts). Returns `{ "id": "uuid" }`.
@@ -147,32 +149,7 @@ Run the automated test suite covering unit logic, security rules, and all Next.j
 npm test
 ```
 
-### Verified Test Results (18/18 Passing)
-```
-> npx tsx scripts/test-runner.mjs && npx tsx scripts/test-api-routes.mjs
-
-✔ 1. Moderation & Profanity Filtering
-✔ 2. Voice Question Detection & Fail-Open Guarantee
-✔ 3. Gamification Engine & Daily Cap (100 points/day)
-✔ 4. Question Creation, Private Isolation, and History
-✔ 5. Anonymous Visibility Transition & Reward Isolation
-✔ 6. Prevention of Self-Voting
-✔ 7. Faculty-Only Answer Verification
-✔ 8. Cross-College Projects & Contribution Decision
-✔ 9. Faculty Pulse Analytics & MIN_CLUSTER Threshold
-
-✔ API: POST /api/solve input validations
-✔ API: POST /api/detect question detection
-✔ API: POST /api/speak text to speech response
-✔ API: POST /api/questions authorization & creation
-✔ API: GET /api/feed strips author identity
-✔ API: Community Answers, Self-Vote Prevention, and Faculty Verification
-✔ API: Cross-College Project Hub & Owner-Only Decisions
-✔ API: Leaderboard & Badges Calculation
-✔ API: Faculty Pulse Analytics & Role Protection
-
-Tests: 18 passed, 0 failed
-```
+The suite exercises API validation, local browser speech feature detection, Gemini response-shape/intent validation, missing-key handling, rate limits, and existing backend/API behavior. These tests do not call Gemini or a live Supabase project.
 
 ---
 

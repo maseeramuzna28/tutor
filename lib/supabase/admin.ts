@@ -5,15 +5,9 @@ import { getInMemoryDb } from './inMemoryStore';
 
 export function createAdminClient(): any {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-  // Use live Supabase client when valid cloud credentials are provided
-  if (
-    supabaseUrl &&
-    !supabaseUrl.includes('your-project') &&
-    serviceRoleKey &&
-    !serviceRoleKey.includes('your-supabase')
-  ) {
+  if (supabaseUrl && serviceRoleKey) {
     return createClient(supabaseUrl, serviceRoleKey, {
       auth: {
         autoRefreshToken: false,
@@ -22,6 +16,9 @@ export function createAdminClient(): any {
     });
   }
 
-  // Transparently fallback to seeded in-memory store for local testing/demo resilience
+  if (process.env.NODE_ENV === 'production' || supabaseUrl || serviceRoleKey) {
+    throw new Error('Both NEXT_PUBLIC_SUPABASE_URL and server-only SUPABASE_SERVICE_ROLE_KEY are required.');
+  }
+
   return getInMemoryDb();
 }
