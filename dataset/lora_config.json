@@ -1,0 +1,28 @@
+{
+  "model_name": "meta-llama/Llama-3.2-3B-Instruct",
+  "max_seq_length": 4096,
+  "load_in_4bit": true,
+  "r": 16,
+  "lora_alpha": 32,
+  "lora_dropout": 0.05,
+  "target_modules": [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
+  ],
+  "dataset_file": "dataset/tuto_academic_instructions.jsonl",
+  "training_args": {
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 4,
+    "warmup_steps": 10,
+    "max_steps": 100,
+    "learning_rate": 0.0002,
+    "fp16": true,
+    "logging_steps": 5,
+    "output_dir": "./tuto-tutor-lora-weights"
+  }
+}
