@@ -1,0 +1,198 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+:root {
+  /* Bright Clean Canvas & Surfaces */
+  --bg-canvas: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #ffffff;
+  --bg-surface-hover: #f1f5f9;
+  
+  --border-hairline: #e2e8f0;
+  --border-hairline-hover: #cbd5e1;
+  --border-hairline-bright: #94a3b8;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  
+  /* 3-Color Combination Palette: Indigo • Amber • Emerald */
+  --color-1-primary: #4f46e5;
+  --color-1-soft: rgba(79, 70, 229, 0.08);
+  --color-1-border: rgba(79, 70, 229, 0.20);
+  
+  --color-2-amber: #d97706;
+  --color-2-soft: rgba(217, 119, 6, 0.08);
+  --color-2-border: rgba(217, 119, 6, 0.20);
+  
+  --color-3-emerald: #059669;
+  --color-3-soft: rgba(5, 150, 105, 0.08);
+  --color-3-border: rgba(5, 150, 105, 0.20);
+}
+
+body {
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", Roboto, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.011em;
+}
+
+/* Bright atmospheric multi-color mesh gradient */
+.bg-canvas-glow {
+  background: 
+    radial-gradient(1000px circle at 50% -8%, rgba(79, 70, 229, 0.08), transparent 60%),
+    radial-gradient(800px circle at 85% 15%, rgba(217, 119, 6, 0.06), transparent 50%),
+    radial-gradient(700px circle at 15% 30%, rgba(5, 150, 105, 0.05), transparent 50%),
+    #f8fafc;
+}
+
+/* Crisp White Panels with subtle border and elevation */
+.craft-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  border-radius: 14px;
+}
+
+.craft-panel-elevated {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.03);
+  border-radius: 14px;
+}
+
+/* Refined 3-Color Badges */
+.craft-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.2rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+}
+
+/* Color 1: Electric Indigo */
+.craft-badge-blue {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+
+/* Color 2: Solar Amber */
+.craft-badge-amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+
+/* Color 3: Fresh Emerald */
+.craft-badge-emerald {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+/* Cube Motion Animations */
+@keyframes cubeEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cube-enter {
+  animation: cubeEnter 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* High-end Tactile Buttons */
+.evil-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.evil-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Primary Color 1 CTA: Electric Indigo */
+.evil-btn-primary {
+  background: #4f46e5;
+  color: #ffffff;
+  border: 1px solid #4338ca;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 4px 12px -2px rgba(79, 70, 229, 0.3);
+}
+
+.evil-btn-primary:hover {
+  background: #4338ca;
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.1), 0 6px 16px -2px rgba(79, 70, 229, 0.4);
+}
+
+/* Clean White Secondary Button */
+.evil-btn-secondary {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.evil-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+/* Color 2 CTA: Solar Amber */
+.evil-btn-amber {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+
+.evil-btn-amber:hover {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+/* Color 3 CTA: Fresh Emerald */
+.evil-btn-emerald {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #047857;
+}
+
+.evil-btn-emerald:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
