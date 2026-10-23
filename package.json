@@ -1,15 +1,19 @@
 {
-  "name": "nexathon",
-  "version": "0.1.0",
+  "name": "tuto",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node scripts/test-api-routes.mjs"
   },
   "dependencies": {
+    "@google/genai": "^2.31.0",
     "@lucasmarkes/hairline": "^0.5.1",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
     "clsx": "^2.1.1",
     "cube-motion": "^0.1.0",
     "gsap": "^3.15.0",
