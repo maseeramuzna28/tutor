@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import VoiceMicButton, { MicState } from "@/components/VoiceMicButton";
 import MathStepRenderer from "@/components/MathStepRenderer";
 import { apiClient } from "@/lib/apiClient";
 import { Question } from "@/lib/types";
+import { LearningSolveResponse } from "@/lib/types/database";
 import {
   Sparkles,
   Volume2,
@@ -19,7 +20,6 @@ import {
 import Link from "next/link";
 import { DoubtButton } from "@/components/evil-buttons/DoubtButton";
 import { RevealButton } from "@/components/evil-buttons/RevealButton";
-import TutoLoader from "@/components/TutoLoader";
 
 export default function TutorPage() {
   const [micState, setMicState] = useState<MicState>("idle");
@@ -28,45 +28,117 @@ export default function TutorPage() {
   const [isSpeakingAudio, setIsSpeakingAudio] = useState(false);
   const [typedInput, setTypedInput] = useState("");
   const [thinkingStep, setThinkingStep] = useState<string>("");
-  const [notAQuestionAlert, setNotAQuestionAlert] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [conversationReply, setConversationReply] = useState<{ question: string; response: string } | null>(null);
+  const solveInProgressRef = useRef(false);
+  const solveAbortRef = useRef<AbortController | null>(null);
+  const conversationRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
 
   const handleConfirmDoubt = async (textToSolve: string) => {
-    if (!textToSolve.trim()) return;
-    setNotAQuestionAlert(false);
-    setMicState("thinking");
-
-    setThinkingStep("Validating question context…");
-    const detection = await apiClient.detectQuestion(textToSolve);
-
-    if (!detection.isQuestion) {
-      setThinkingStep("");
+    const questionText = textToSolve.trim();
+    if (!questionText) {
+      setErrorMessage("No question detected. Please speak clearly or type your question below.");
       setMicState("confirming");
-      setNotAQuestionAlert(true);
       return;
     }
+    if (solveInProgressRef.current) return;
 
-    setThinkingStep("Analyzing conceptual mechanisms…");
-    await new Promise((r) => setTimeout(r, 350));
+    solveInProgressRef.current = true;
+    solveAbortRef.current?.abort();
+    solveAbortRef.current = new AbortController();
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsSpeakingAudio(false);
+    setErrorMessage(null);
+    setSaveNotice(null);
+    setConversationReply(null);
+    setActiveQuestion(null);
+    setMicState("thinking");
+    setThinkingStep("Sending your question to Gemini…");
 
-    setThinkingStep("Generating step-by-step derivation…");
-    const solution = await apiClient.solveDoubt(textToSolve);
+    try {
+      const solution = await apiClient.solveDoubt(
+        questionText,
+        conversationRef.current,
+        solveAbortRef.current.signal
+      );
+      const answerText = solution.response || solution.spoken_answer || "";
+      conversationRef.current = [
+        ...conversationRef.current,
+        { role: "user" as const, content: questionText },
+        { role: "assistant" as const, content: answerText },
+      ].slice(-6);
 
-    const newQuestion = await apiClient.createPrivateQuestion({
-      text: textToSolve,
-      spoken_answer: solution.spoken_answer,
-      steps: solution.steps,
-      concept: solution.concept,
-      root_cause: solution.root_cause,
-      subject: solution.subject,
-    });
+      if (solution.intent === "greeting" || solution.intent === "acknowledgement" || solution.intent === "unrelated") {
+        setConversationReply({ question: questionText, response: answerText });
+        setMicState("speaking");
+        playSpokenAnswer(answerText);
+        return;
+      }
 
-    setActiveQuestion(newQuestion);
-    setThinkingStep("");
-    setMicState("speaking");
-    playSpokenAnswer(solution.spoken_answer);
+      const learning = solution as unknown as LearningSolveResponse;
+      const steps = (learning.steps || []).map((step: any, idx: number) => ({
+        step_number: step.step ?? step.step_number ?? (idx + 1),
+        title: step.title,
+        explanation: step.explanation,
+        latex: step.equation_or_code ?? step.latex,
+        code: step.code,
+      }));
+      const generatedQuestion: Question = {
+        id: `answer_${Date.now()}`,
+        text: questionText,
+        spoken_answer: learning.spoken_answer || answerText,
+        steps,
+        subject: learning.subject || "General Education",
+        concept: learning.concept || learning.topic || learning.subject || "Explanation",
+        root_cause: learning.root_cause || "",
+        visibility: "private",
+        resolution_status: "open",
+        college: "",
+        created_at: new Date().toISOString(),
+      };
+      setActiveQuestion(generatedQuestion);
+
+      try {
+        const savedQuestion = await apiClient.createPrivateQuestion({
+          text: questionText,
+          spoken_answer: generatedQuestion.spoken_answer,
+          steps,
+          concept: generatedQuestion.concept,
+          root_cause: generatedQuestion.root_cause,
+          subject: generatedQuestion.subject,
+        });
+        setActiveQuestion((current) =>
+          current ? { ...current, id: savedQuestion.id, created_at: savedQuestion.created_at } : current
+        );
+      } catch (error) {
+        setSaveNotice(
+          error instanceof Error
+            ? `Answer generated, but not saved: ${error.message}`
+            : "Answer generated, but it could not be saved. Sign in and try again."
+        );
+      }
+
+      setMicState("speaking");
+      playSpokenAnswer(generatedQuestion.spoken_answer);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        setMicState("confirming");
+      } else {
+        setErrorMessage(error instanceof Error ? error.message : "The tutor could not answer this question.");
+        setMicState("confirming");
+      }
+    } finally {
+      solveInProgressRef.current = false;
+      solveAbortRef.current = null;
+      setThinkingStep("");
+    }
   };
 
   const handleStopExecution = () => {
+    solveAbortRef.current?.abort();
     stopAudio();
     setThinkingStep("");
     setMicState("confirming");
@@ -123,11 +195,11 @@ export default function TutorPage() {
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Voice AI Tutor</h1>
             <span className="craft-badge craft-badge-blue">
-              Real-time Derivations
+              All Academic Subjects
             </span>
           </div>
           <p className="text-xs text-slate-600 mt-1">
-            Speak naturally. Confirm your question. Review step-by-step mathematical reasoning with spoken explanation.
+            Ask by voice or text. Gemini answers questions across subjects, with steps and examples when useful.
           </p>
         </div>
 
@@ -154,33 +226,25 @@ export default function TutorPage() {
 
             {/* Thinking Step Indicator */}
             {micState === "thinking" && (
-              <div className="mt-4 rounded-xl border border-indigo-200/80 bg-white/90 p-4 text-center shadow-xs">
-                <TutoLoader
-                  variant="voice"
-                  size="md"
-                  color="multi"
-                  label={thinkingStep || "Synthesizing mathematical derivation…"}
-                />
+              <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-center cube-enter">
+                <div className="flex items-center justify-center gap-2 text-xs font-semibold text-indigo-700">
+                  <span className="h-2 w-2 rounded-full bg-indigo-600 animate-ping" />
+                  <span>{thinkingStep || "Processing with AI…"}</span>
+                </div>
                 <button
                   onClick={handleStopExecution}
-                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-red-600 transition-colors"
+                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 transition-colors"
                 >
                   <Square className="h-3 w-3" />
-                  <span>Cancel derivation</span>
+                  <span>Cancel</span>
                 </button>
               </div>
             )}
 
-            {/* Not a Question Banner */}
-            {notAQuestionAlert && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 cube-enter flex items-start gap-2.5">
-                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-amber-900">Clarify your inquiry</p>
-                  <p className="text-[11px] text-amber-700 mt-0.5">
-                    We couldn&apos;t detect a specific academic inquiry. E.g. &ldquo;Why do we subtract lambda times identity?&rdquo;
-                  </p>
-                </div>
+            {errorMessage && (
+              <div role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800 cube-enter flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+                <p>{errorMessage}</p>
               </div>
             )}
 
@@ -240,7 +304,7 @@ export default function TutorPage() {
                   type="text"
                   value={typedInput}
                   onChange={(e) => setTypedInput(e.target.value)}
-                  placeholder="e.g. How to choose u and dv in integration by parts?"
+                  placeholder="Ask any educational question…"
                   className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:border-indigo-500 focus:outline-none transition-all shadow-xs"
                 />
                 <button
@@ -257,50 +321,39 @@ export default function TutorPage() {
           {/* Example Prompts */}
           <div className="craft-panel p-4 shadow-sm">
             <p className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-2.5">
-              Example Academic Inquiries
+              Try any subject
             </p>
             <div className="space-y-2">
-              <button
-                onClick={() => {
-                  const q = "Why do we subtract lambda times the identity matrix when finding eigenvalues?";
-                  setTranscript(q);
-                  handleConfirmDoubt(q);
-                }}
-                className="w-full text-left rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 text-xs text-slate-800 hover:bg-indigo-50/60 hover:border-indigo-200 transition-all"
-              >
-                &ldquo;Why do we subtract lambda times the identity matrix when finding eigenvalues?&rdquo;
-                <span className="block text-[10px] font-semibold text-indigo-600 mt-0.5">Linear Algebra • det(A - λI)</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  const q = "How do we choose u and dv in integration by parts to avoid an infinite loop in recurrence relations?";
-                  setTranscript(q);
-                  handleConfirmDoubt(q);
-                }}
-                className="w-full text-left rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 text-xs text-slate-800 hover:bg-amber-50/60 hover:border-amber-200 transition-all"
-              >
-                &ldquo;How do we choose u and dv in integration by parts to avoid an infinite loop in recurrence relations?&rdquo;
-                <span className="block text-[10px] font-semibold text-amber-700 mt-0.5">Calculus • Reduction Formulas</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  const q = "In a MOSFET, why does channel pinch-off not drop the drain current to zero?";
-                  setTranscript(q);
-                  handleConfirmDoubt(q);
-                }}
-                className="w-full text-left rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 text-xs text-slate-800 hover:bg-emerald-50/60 hover:border-emerald-200 transition-all"
-              >
-                &ldquo;In a MOSFET, why does channel pinch-off not drop the drain current to zero?&rdquo;
-                <span className="block text-[10px] font-semibold text-emerald-700 mt-0.5">Semiconductor Physics • Saturation</span>
-              </button>
+              {[
+                "Explain photosynthesis in simple words.",
+                "What is a binary search tree? Give a Python example.",
+                "Solve 2x + 5 = 17 step by step.",
+                "What is the difference between a process and a thread in operating systems?",
+                "Explain the causes of World War I.",
+              ].map((example) => (
+                <button
+                  key={example}
+                  disabled={micState === "thinking"}
+                  onClick={() => {
+                    setTranscript(example);
+                    void handleConfirmDoubt(example);
+                  }}
+                  className="w-full text-left rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 text-xs text-slate-800 hover:bg-indigo-50/60 hover:border-indigo-200 transition-all disabled:cursor-wait disabled:opacity-60"
+                >
+                  {example}
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
         {/* Right Column: Solution & Derivations */}
         <div className="lg:col-span-7">
+          {saveNotice && (
+            <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+              {saveNotice}
+            </div>
+          )}
           {activeQuestion ? (
             <div className="craft-panel p-6 shadow-md space-y-6 cube-enter">
               {/* Question Header */}
@@ -320,7 +373,7 @@ export default function TutorPage() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-indigo-900 flex items-center gap-1.5">
                     <Volume2 className="h-4 w-4 text-indigo-600" />
-                    Spoken Audio Explanation
+                    Gemini&apos;s Answer
                   </span>
                   {isSpeakingAudio ? (
                     <button
@@ -338,26 +391,30 @@ export default function TutorPage() {
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-indigo-950 leading-relaxed italic">
-                  &ldquo;{activeQuestion.spoken_answer}&rdquo;
+                <p className="whitespace-pre-wrap text-xs text-indigo-950 leading-relaxed">
+                  {activeQuestion.spoken_answer}
                 </p>
               </div>
 
               {/* Conceptual Mechanism Identified */}
-              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
-                  Conceptual Mechanism Identified
-                </p>
-                <p className="text-slate-700 mt-1 leading-relaxed">{activeQuestion.root_cause}</p>
-              </div>
+              {activeQuestion.root_cause && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                    Helpful Background
+                  </p>
+                  <p className="text-slate-700 mt-1 leading-relaxed">{activeQuestion.root_cause}</p>
+                </div>
+              )}
 
               {/* Step-by-Step KaTeX Math Equations */}
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
-                  Mathematical Derivation:
-                </h4>
-                <MathStepRenderer steps={activeQuestion.steps} />
-              </div>
+              {activeQuestion.steps.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
+                    Explanation steps:
+                  </h4>
+                  <MathStepRenderer steps={activeQuestion.steps} />
+                </div>
+              )}
 
               {/* Privacy Choice: Post Anonymously */}
               <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -429,6 +486,24 @@ export default function TutorPage() {
                 </div>
               )}
             </div>
+          ) : conversationReply ? (
+            <div className="craft-panel p-6 shadow-md space-y-4 cube-enter">
+              <p className="text-xs font-semibold text-slate-500">{conversationReply.question}</p>
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-indigo-900">Tutor response</span>
+                  <button
+                    onClick={() => playSpokenAnswer(conversationReply.response)}
+                    className="rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50"
+                  >
+                    Replay voice
+                  </button>
+                </div>
+                <p className="whitespace-pre-wrap text-xs leading-relaxed text-indigo-950">
+                  {conversationReply.response}
+                </p>
+              </div>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center craft-panel p-12 text-center h-full min-h-[440px] shadow-sm">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 mb-4">
@@ -436,8 +511,7 @@ export default function TutorPage() {
               </div>
               <h3 className="text-base font-semibold text-slate-900">No Active Question</h3>
               <p className="text-xs text-slate-500 max-w-sm mt-1 leading-relaxed">
-                Click the microphone to speak your question or pick an example inquiry from the left to view step-by-step
-                reasoning.
+                Ask an educational question in any subject by voice or text. Gemini will provide an answer and useful steps when appropriate.
               </p>
             </div>
           )}

@@ -91,74 +91,40 @@ class ApiClient {
     return { isQuestion: true };
   }
 
-  async solveDoubt(questionText: string): Promise<{
+  async solveDoubt(
+    questionText: string,
+    conversation: { role: "user" | "assistant"; content: string }[] = [],
+    signal?: AbortSignal
+  ): Promise<{
+    intent?: string;
+    topic?: string;
+    response?: string;
     spoken_answer: string;
     steps: Question["steps"];
     concept: string;
     root_cause: string;
     subject: string;
   }> {
-    try {
-      const res = await fetch("/api/solve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: questionText }),
-      });
-      if (res.ok) return await res.json();
-    } catch {}
-
-    // Intelligent fallback for demo question if API route is still in development
-    const qLower = questionText.toLowerCase();
-    if (qLower.includes("mosfet") || qLower.includes("drain") || qLower.includes("pinch")) {
-      return {
-        spoken_answer:
-          "At pinch-off, the channel width reaches zero at the drain edge, but the intense electric field across the depletion region sweeps carriers across immediately, maintaining constant saturation current.",
-        concept: "MOSFET Saturation vs Triode",
-        root_cause: "Pinch-off boundary condition vs carrier drift velocity",
-        subject: "Analog Electronics",
-        steps: [
-          {
-            step_number: 1,
-            title: "Channel Pinch-off Definition",
-            explanation: "When V_DS reaches V_GS - V_th, channel inversion layer depth at the drain terminal collapses to zero.",
-            latex: "V_{DS} \\ge V_{GS} - V_{th}",
-          },
-          {
-            step_number: 2,
-            title: "Electric Field Sweeping",
-            explanation: "Electrons arriving at the pinch-off point are instantly propelled into the drain by the high horizontal electric field.",
-            latex: "E_{drift} = \\frac{V_{DS} - (V_{GS} - V_{th})}{\\Delta L}",
-          },
-        ],
-      };
+    const res = await fetch("/api/solve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: questionText, conversation }),
+      signal,
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => null);
+      throw new Error(errData?.error || `The tutor service returned status ${res.status}.`);
     }
-
+    const data = await res.json();
     return {
-      spoken_answer:
-        "When finding eigenvalues, we solve A v equals lambda v. Rearranging gives A v minus lambda I v equals zero. For non-zero vector solutions, the determinant of A minus lambda I must equal zero.",
-      concept: "Eigenvalues & Diagonalization",
-      root_cause: "Matrix scalar scaling vs identity transformation",
-      subject: "Engineering Mathematics",
-      steps: [
-        {
-          step_number: 1,
-          title: "Linear Transformation Scaling",
-          explanation: "An eigenvector v preserves direction under linear map A, scaled by eigenvalue \\lambda:",
-          latex: "A \\mathbf{v} = \\lambda \\mathbf{v}",
-        },
-        {
-          step_number: 2,
-          title: "Factoring With The Identity Matrix",
-          explanation: "Scalar \\lambda cannot be subtracted from matrix A directly; we scale the identity matrix I:",
-          latex: "(A - \\lambda I)\\mathbf{v} = \\mathbf{0}",
-        },
-        {
-          step_number: 3,
-          title: "Singular Matrix Condition",
-          explanation: "Non-trivial solutions exist if and only if the matrix operator is non-invertible:",
-          latex: "\\det(A - \\lambda I) = 0",
-        },
-      ],
+      intent: data.intent,
+      topic: data.topic,
+      response: data.response || data.spoken_answer || "",
+      spoken_answer: data.spoken_answer || data.response || "",
+      steps: data.steps || [],
+      concept: data.concept || data.topic || "Academic Concept",
+      root_cause: data.root_cause || "",
+      subject: data.subject || "General Education",
     };
   }
 
