@@ -161,11 +161,11 @@ export default function FeedPage() {
       <div className="space-y-5">
         {loading ? (
           <div className="space-y-4">
-            <div className="flex items-center justify-center py-4 bg-white/70 rounded-xl border border-slate-200/80 shadow-2xs">
-              <TutoLoader variant="voice" size="sm" color="indigo" label="Loading peer discussion feed…" />
+            <div className="flex items-center justify-center py-4 bg-white border border-stone-200 rounded-none">
+              <TutoLoader variant="voice" size="sm" color="red" label="Loading peer discussion feed…" />
             </div>
             {[1, 2, 3].map((i) => (
-              <div key={i} className="craft-panel p-6 animate-pulse space-y-3">
+              <div key={i} className="border border-stone-200 bg-white p-6 animate-pulse space-y-3 rounded-none">
                 <div className="flex justify-between">
                   <div className="h-4 w-28 bg-slate-100 rounded" />
                   <div className="h-4 w-20 bg-slate-100 rounded" />

@@ -79,47 +79,39 @@ export default function VoiceMicButton({
       <div className="relative flex items-center justify-center p-6">
         {/* Pulsing rings when listening */}
         {state === "listening" && (
-          <>
-            <div className="absolute h-36 w-36 rounded-full bg-indigo-500/10 animate-ping opacity-60" />
-            <div className="absolute h-28 w-28 rounded-full bg-indigo-500/20 animate-pulse" />
-          </>
-        )}
-
-        {/* Ambient glow when speaking */}
-        {state === "speaking" && (
-          <div className="absolute h-32 w-32 rounded-full bg-indigo-400/20 blur-xl animate-pulse" />
+          <div className="absolute h-32 w-32 border border-red-500/40 animate-ping" />
         )}
 
         {/* Main Mic Button */}
         <button
           onClick={toggleMic}
           disabled={state === "thinking" || state === "speaking"}
-          className={`relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl transition-all duration-200 cursor-pointer ${
+          className={`relative z-10 flex h-20 w-20 items-center justify-center rounded-xs transition-all duration-150 cursor-pointer ${
             state === "listening"
-              ? "bg-red-500 text-white shadow-[0_0_28px_rgba(239,68,68,0.4)] scale-105"
+              ? "bg-red-600 text-white border-2 border-red-700 shadow-md"
               : state === "thinking"
-              ? "bg-amber-100 text-amber-700 border-2 border-amber-300 cursor-wait"
+              ? "bg-neutral-100 text-neutral-900 border-2 border-neutral-300 cursor-wait"
               : state === "speaking"
-              ? "bg-indigo-100 text-indigo-700 border-2 border-indigo-300 shadow-[0_0_24px_rgba(79,70,229,0.3)]"
-              : "bg-indigo-600 text-white shadow-[0_4px_16px_rgba(79,70,229,0.35)] hover:bg-indigo-700 hover:scale-105"
+              ? "bg-neutral-950 text-white border-2 border-red-600 shadow-md"
+              : "bg-neutral-950 text-white border border-neutral-900 hover:bg-red-600 hover:border-red-600"
           }`}
           aria-label="Voice Tutor Microphone"
         >
           {state === "listening" ? (
             <div className="flex flex-col items-center">
-              <MicOff className="h-6 w-6 text-white animate-pulse" />
-              <span className="text-[9px] font-bold tracking-wider text-white mt-0.5">STOP</span>
+              <MicOff className="h-6 w-6 text-white" />
+              <span className="text-[10px] font-mono font-bold tracking-widest text-white mt-1">STOP</span>
             </div>
           ) : state === "thinking" ? (
-            <TutoLoader variant="voice" size="sm" color="amber" />
+            <TutoLoader variant="voice" size="sm" color="red" />
           ) : state === "speaking" ? (
             <div className="flex items-center gap-1">
-              <span className="h-4 w-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
-              <span className="h-6 w-1 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-              <span className="h-4 w-1 bg-indigo-600 rounded-full animate-bounce" />
+              <span className="h-4 w-1 bg-red-500 rounded-none animate-bounce [animation-delay:-0.3s]" />
+              <span className="h-6 w-1 bg-white rounded-none animate-bounce [animation-delay:-0.15s]" />
+              <span className="h-4 w-1 bg-red-500 rounded-none animate-bounce" />
             </div>
           ) : (
-            <Mic className="h-8 w-8 text-white" />
+            <Mic className="h-7 w-7 text-white" />
           )}
         </button>
       </div>

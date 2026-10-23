@@ -118,15 +118,15 @@ export default function TutorPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 mb-16 md:mb-0">
       {/* Header */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-stone-200 pb-5">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Voice AI Tutor</h1>
-            <span className="craft-badge craft-badge-blue">
+            <h1 className="text-2xl font-serif text-stone-950 font-normal">Voice AI Tutor</h1>
+            <span className="craft-badge craft-badge-red">
               Real-time Derivations
             </span>
           </div>
-          <p className="text-xs text-slate-600 mt-1">
+          <p className="text-xs text-stone-600 mt-1 font-sans">
             Speak naturally. Confirm your question. Review step-by-step mathematical reasoning with spoken explanation.
           </p>
         </div>
@@ -142,7 +142,7 @@ export default function TutorPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Voice Mic & Inputs */}
         <div className="lg:col-span-5 space-y-5">
-          <div className="craft-panel p-6 shadow-sm">
+          <div className="border border-stone-200 bg-white p-6 rounded-none">
             {/* Voice Mic Button */}
             <VoiceMicButton
               state={micState}
@@ -154,16 +154,16 @@ export default function TutorPage() {
 
             {/* Thinking Step Indicator */}
             {micState === "thinking" && (
-              <div className="mt-4 rounded-xl border border-indigo-200/80 bg-white/90 p-4 text-center shadow-xs">
+              <div className="mt-4 border border-stone-300 bg-white p-4 text-center rounded-none">
                 <TutoLoader
                   variant="voice"
                   size="md"
-                  color="multi"
+                  color="red"
                   label={thinkingStep || "Synthesizing mathematical derivation…"}
                 />
                 <button
                   onClick={handleStopExecution}
-                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-red-600 transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-stone-500 hover:text-red-600 transition-colors"
                 >
                   <Square className="h-3 w-3" />
                   <span>Cancel derivation</span>

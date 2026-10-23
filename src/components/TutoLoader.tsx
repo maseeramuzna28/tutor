@@ -7,7 +7,7 @@ import Image from "next/image";
 export interface TutoLoaderProps {
   variant?: "voice" | "page" | "inline" | "academic";
   size?: "sm" | "md" | "lg";
-  color?: "indigo" | "amber" | "emerald" | "multi";
+  color?: "red" | "ink" | "amber" | "emerald" | "multi";
   label?: string;
   className?: string;
 }
@@ -15,7 +15,7 @@ export interface TutoLoaderProps {
 export default function TutoLoader({
   variant = "voice",
   size = "md",
-  color = "indigo",
+  color = "red",
   label,
   className = "",
 }: TutoLoaderProps) {
@@ -26,12 +26,13 @@ export default function TutoLoader({
     lg: { height: "h-11", width: "w-1.5", maxScale: 2.5, minScale: 0.25, gap: "gap-2" },
   }[size];
 
-  // Palette definitions (strict adherence to 3-color palette: Electric Indigo, Solar Amber, Fresh Emerald)
+  // Palette definitions (Editorial Red & Ink Monastic system)
   const barColors = {
-    indigo: "bg-indigo-600",
+    red: "bg-red-600",
+    ink: "bg-neutral-900",
     amber: "bg-amber-600",
     emerald: "bg-emerald-600",
-    multi: "bg-gradient-to-t from-indigo-600 via-indigo-500 to-amber-500",
+    multi: "bg-gradient-to-t from-red-600 via-neutral-900 to-red-600",
   }[color];
 
   // 1. Acoustic Neural Wave (Primary AI Voice & Thinking Loader)
@@ -122,7 +123,7 @@ export default function TutoLoader({
               duration: 1.4,
               ease: "easeInOut",
             }}
-            className="h-full w-1/2 bg-gradient-to-r from-transparent via-indigo-600 to-amber-500 shadow-[0_0_12px_rgba(79,70,229,0.5)]"
+            className="h-full w-1/2 bg-gradient-to-r from-transparent via-red-600 to-neutral-900"
           />
         </div>
 
@@ -165,7 +166,7 @@ export default function TutoLoader({
                   ease: "easeInOut",
                   delay,
                 }}
-                className={`w-1 h-4 rounded-full ${i === 2 ? "bg-amber-500" : "bg-indigo-600"} origin-center`}
+                className={`w-1 h-4 rounded-none ${i === 2 ? "bg-red-600" : "bg-neutral-900"} origin-center`}
               />
             ))}
           </div>

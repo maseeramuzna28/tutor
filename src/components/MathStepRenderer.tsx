@@ -32,18 +32,18 @@ function StepCard({ step }: { step: StepItem }) {
   }, [step.latex]);
 
   return (
-    <div className="craft-panel p-4 transition-all hover:border-indigo-200 shadow-xs">
+    <div className="border border-stone-200 bg-white p-4 transition-all hover:border-red-600 rounded-none">
       <div className="flex items-center gap-2.5 mb-2">
-        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200">
+        <div className="flex h-5 w-5 items-center justify-center rounded-none bg-stone-950 text-white font-mono text-[10px] font-bold">
           {step.step_number}
         </div>
-        <h4 className="text-xs font-bold text-slate-900 tracking-tight">{step.title}</h4>
+        <h4 className="text-xs font-mono uppercase tracking-wider font-bold text-stone-900">{step.title}</h4>
       </div>
 
-      <p className="text-xs text-slate-600 leading-relaxed mb-2.5">{step.explanation}</p>
+      <p className="text-xs text-stone-600 leading-relaxed mb-2.5">{step.explanation}</p>
 
       {renderedLatex && (
-        <div className="my-2 overflow-x-auto rounded-lg bg-slate-50 p-3 text-slate-900 border border-slate-200 text-center text-sm shadow-xs">
+        <div className="my-2 overflow-x-auto rounded-none bg-stone-50/70 p-3 text-stone-950 border border-stone-200 text-center text-sm font-mono">
           <div dangerouslySetInnerHTML={{ __html: renderedLatex }} />
         </div>
       )}
