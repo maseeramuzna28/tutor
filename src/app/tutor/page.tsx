@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { DoubtButton } from "@/components/evil-buttons/DoubtButton";
 import { RevealButton } from "@/components/evil-buttons/RevealButton";
+import TutoLoader from "@/components/TutoLoader";
 
 export default function TutorPage() {
   const [micState, setMicState] = useState<MicState>("idle");
@@ -153,17 +154,19 @@ export default function TutorPage() {
 
             {/* Thinking Step Indicator */}
             {micState === "thinking" && (
-              <div className="mt-4 rounded-xl border border-indigo-200 bg-indigo-50/80 p-3 text-center cube-enter">
-                <div className="flex items-center justify-center gap-2 text-xs font-semibold text-indigo-700">
-                  <span className="h-2 w-2 rounded-full bg-indigo-600 animate-ping" />
-                  <span>{thinkingStep || "Processing with AI…"}</span>
-                </div>
+              <div className="mt-4 rounded-xl border border-indigo-200/80 bg-white/90 p-4 text-center shadow-xs">
+                <TutoLoader
+                  variant="voice"
+                  size="md"
+                  color="multi"
+                  label={thinkingStep || "Synthesizing mathematical derivation…"}
+                />
                 <button
                   onClick={handleStopExecution}
-                  className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-red-600 hover:text-red-700 transition-colors"
+                  className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500 hover:text-red-600 transition-colors"
                 >
                   <Square className="h-3 w-3" />
-                  <span>Cancel</span>
+                  <span>Cancel derivation</span>
                 </button>
               </div>
             )}

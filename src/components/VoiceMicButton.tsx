@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import { Mic, MicOff, Loader2 } from "lucide-react";
+import { Mic, MicOff } from "lucide-react";
+import TutoLoader from "@/components/TutoLoader";
 
 export type MicState = "idle" | "listening" | "confirming" | "thinking" | "speaking";
 
@@ -110,7 +111,7 @@ export default function VoiceMicButton({
               <span className="text-[9px] font-bold tracking-wider text-white mt-0.5">STOP</span>
             </div>
           ) : state === "thinking" ? (
-            <Loader2 className="h-7 w-7 text-amber-600 animate-spin" />
+            <TutoLoader variant="voice" size="sm" color="amber" />
           ) : state === "speaking" ? (
             <div className="flex items-center gap-1">
               <span className="h-4 w-1 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]" />

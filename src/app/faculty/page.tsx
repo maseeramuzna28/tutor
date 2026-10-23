@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Terminal } from "@lucasmarkes/hairline/react";
 import { RevealButton } from "@/components/evil-buttons/RevealButton";
+import TutoLoader from "@/components/TutoLoader";
 
 export default function FacultyPage() {
   const [pulse, setPulse] = useState<PulseItem[]>([]);
@@ -327,8 +328,14 @@ export default function FacultyPage() {
                   disabled={isSending || isDrafting}
                   className="evil-btn evil-btn-primary px-5 py-2.5 text-xs font-semibold gap-2"
                 >
-                  <Send className="h-3.5 w-3.5" />
-                  <span>{isSending ? "Routing..." : "Broadcast Clarification"}</span>
+                  {isSending ? (
+                    <TutoLoader variant="inline" size="sm" color="amber" label="Routing privately…" />
+                  ) : (
+                    <>
+                      <Send className="h-3.5 w-3.5" />
+                      <span>Broadcast Clarification</span>
+                    </>
+                  )}
                 </button>
               </div>
 
