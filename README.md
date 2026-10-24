@@ -1,36 +1,76 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# TUTO — AI Academic Intelligence & Socratic Learning Platform
 
-## Getting Started
+> **Live Production App**: **[https://tutor-nine-eta.vercel.app](https://tutor-nine-eta.vercel.app)**  
+> **Target Branch**: [`tuto`](https://github.com/maseeramuzna28/tutor/tree/tuto)
 
-First, run the development server:
+TUTO is an AI-powered academic learning platform for college students and faculty. Students ask questions and receive first-principles, step-by-step derivations with Socratic voice guidance, while faculty receive real-time telemetry on student confusion hotspots before exams occur.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🌟 Key Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 1. Interactive Socratic Voice Companion
+- **Step-by-Step Problem Solving**: Rather than reciting monolithic text, TUTO breaks problems down into intuitive derivation steps with synchronous card highlights.
+- **Natural Voice Cadence & Pauses**: Uses empathetic Socratic teaching prompts and periodic comprehension check-ins (*"Does this substitution make intuitive sense so far?"*).
+- **Interactive Response Chips**: *"Understood! Next Step"*, *"Explain Simpler"*, *"Give Everyday Analogy"*, *"Scribe to Notebook"*, and *"Speak Follow-Up"*.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. Hands-Free Digital Notebook
+- **Voice Pen**: Dictate your thoughts and formulas hands-free via web speech recognition.
+- **Smooth Freehand Drawing & Highlighter**: SVG canvas with Royal Blue, Charcoal, Crimson, Emerald ink and translucent fluorescent highlighter.
+- **Paper Styles**: Authentic College-Ruled Lined paper with red margin and Engineering Dot Grid.
+- **Auto-Scribe**: 1-click pinning of derivations directly into your digital notebook.
 
-## Learn More
+### 3. Editorial & 3D Animated Frontend
+- **3D Platform & Testimonial Wall**: Interactive mouse-driven 3D perspective wall with physics tilt.
+- **Coordinate Canvas Grid**: Real-time cursor tracking radial glow background.
+- **Architectural Display Typography**: Condensed high-impact headline styling powered by `Oswald` & `Syne`.
+- **14-Page App Suite**: Smart Notebook, AI Tutor, Confusion Map, Dashboard, Projects, Curriculum Updates, and Faculty Telemetry.
 
-To learn more about Next.js, take a look at the following resources:
+### 4. High-Performance Multi-Tier Intelligence Engine
+- **Tier 1 (Local)**: Fast-fail local Ollama daemon integration (`tuto-tutor`).
+- **Tier 2 (Cloud)**: Google Gemini 3.5 Flash Lite generating dynamic KaTeX LaTeX formulas, root-cause diagnosis, and everyday analogies in under 5 seconds.
+- **Tier 3 (Offline)**: Deterministic first-principles fallback with 10 specialized domain templates and autonomous PostgREST in-memory store.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠️ Tech Stack
 
-## Deploy on Vercel
+- **Framework**: [Next.js 16 (Turbopack)](https://nextjs.org/) + React 19
+- **Styling**: Tailwind CSS + Custom Architectural CSS Tokens
+- **AI Engine**: `@google/genai` (Gemini 3.5 Flash Lite)
+- **Math Rendering**: KaTeX
+- **Deployment**: [Vercel](https://vercel.com/) Global Edge Network
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🚀 Local Development
+
+1. **Clone the repository and checkout the `tuto` branch**:
+   ```bash
+   git clone https://github.com/maseeramuzna28/tutor.git -b tuto
+   cd tutor
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Configure Environment Variables**:
+   Copy `.env.example` to `.env.local` and add your Gemini API key:
+   ```env
+   GEMINI_API_KEY=your_gemini_api_key_here
+   GEMINI_MODEL=gemini-3.5-flash-lite
+   ```
+
+4. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+   Open **[http://localhost:3001](http://localhost:3001)** in your browser.
+
+---
+
+## 📄 License
+
+MIT © 2026 Tuto Team
