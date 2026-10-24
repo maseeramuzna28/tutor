@@ -157,7 +157,7 @@ export async function solveAcademicDoubt(input: SolveRequest): Promise<SolveResp
     throw new Error('GEMINI_API_KEY is not configured in the server environment.');
   }
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   const history = conversation.map((turn) => `${turn.role === 'user' ? 'Student' : 'TUTO'}: ${turn.content}`).join('\n');
   const prompt = `${history ? `Recent conversation:\n${history}\n\n` : ''}Current student message:\n${question}${input.style ? `\n\n${styles[input.style]}` : ''}`;
   const controller = new AbortController();
@@ -211,7 +211,7 @@ export async function clarifyAcademicStep(stepTitle: string, answerContext?: str
     return `To understand "${stepTitle}", think of it like building with Lego blocks: before you can snap the roof in place, you need sturdy support columns below it. In the same way, this step establishes the prerequisite anchor before calculating the next state.`;
   }
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
 
@@ -247,7 +247,7 @@ export async function transcribeAudioData(audioBuffer: Buffer, mimeType: string 
     return 'Why do we subtract lambda times the identity matrix when finding eigenvalues?';
   }
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25_000);
 
@@ -307,7 +307,7 @@ export async function detectQuestionIntent(text: string): Promise<boolean> {
   try {
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-3.8-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
       contents: `Is this text an academic question or doubt that a student would ask? Answer YES or NO.\nText: "${trimmed}"`,
       config: {
         maxOutputTokens: 10,

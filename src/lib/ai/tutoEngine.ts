@@ -66,7 +66,7 @@ export interface MicroLessonResult {
 // Configuration defaults
 const OLLAMA_BASE_URL = process.env.OLLAMA_API_BASE || 'http://127.0.0.1:11434';
 const TUTO_MODEL_NAME = process.env.TUTO_LOCAL_MODEL || 'tuto-tutor';
-const GEMINI_MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+const GEMINI_MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 // Clean speech helper (Acoustic Bot)
 export function sanitizeTextForSpeech(text: string): string {

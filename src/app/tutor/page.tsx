@@ -43,45 +43,50 @@ export default function TutorPage() {
     setNotAQuestionAlert(false);
     setMicState("thinking");
 
-    setThinkingStep("Validating question context…");
-    const detection = await apiClient.detectQuestion(textToSolve);
+    try {
+      setThinkingStep("Validating question context…");
+      const detection = await apiClient.detectQuestion(textToSolve);
 
-    if (!detection.isQuestion) {
+      if (!detection.isQuestion) {
+        setThinkingStep("");
+        setMicState("confirming");
+        setNotAQuestionAlert(true);
+        return;
+      }
+
+      setThinkingStep("Generating step-by-step Socratic teaching derivation…");
+      const solution = await apiClient.solveDoubt(textToSolve);
+
+      const newQuestion = await apiClient.createPrivateQuestion({
+        text: textToSolve,
+        spoken_answer: solution.spoken_answer,
+        steps: solution.steps,
+        concept: solution.concept,
+        root_cause: solution.root_cause,
+        subject: solution.subject,
+      });
+
+      // Attach Socratic teaching beats
+      newQuestion.tutor_intro = (solution as any).tutor_intro;
+      newQuestion.tutor_wrapup = (solution as any).tutor_wrapup;
+      newQuestion.steps = (solution.steps || []).map((s: any, idx: number) => ({
+        ...s,
+        step_number: s.step_number || s.step || idx + 1,
+        latex: s.latex || s.equation_or_code,
+        teaching_speech: s.teaching_speech,
+        check_question: s.check_question,
+        auto_notes: s.auto_notes,
+      }));
+
+      setActiveQuestion(newQuestion);
+      setActiveStepIndex(0);
+    } catch (err: any) {
+      console.error("Failed to solve question:", err);
+      alert(err?.message || "Encountered an issue solving the doubt. Please try again.");
+    } finally {
       setThinkingStep("");
-      setMicState("confirming");
-      setNotAQuestionAlert(true);
-      return;
+      setMicState("idle");
     }
-
-    setThinkingStep("Analyzing conceptual mechanisms…");
-    await new Promise((r) => setTimeout(r, 350));
-
-    setThinkingStep("Generating step-by-step Socratic teaching derivation…");
-    const solution = await apiClient.solveDoubt(textToSolve);
-
-    const newQuestion = await apiClient.createPrivateQuestion({
-      text: textToSolve,
-      spoken_answer: solution.spoken_answer,
-      steps: solution.steps,
-      concept: solution.concept,
-      root_cause: solution.root_cause,
-      subject: solution.subject,
-    });
-
-    // Attach Socratic teaching beats
-    newQuestion.tutor_intro = (solution as any).tutor_intro;
-    newQuestion.tutor_wrapup = (solution as any).tutor_wrapup;
-    newQuestion.steps = (solution.steps || []).map((s: any, idx: number) => ({
-      ...s,
-      teaching_speech: s.teaching_speech,
-      check_question: s.check_question,
-      auto_notes: s.auto_notes,
-    }));
-
-    setActiveQuestion(newQuestion);
-    setActiveStepIndex(0);
-    setThinkingStep("");
-    setMicState("idle");
   };
 
   const handleStopExecution = () => {

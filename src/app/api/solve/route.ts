@@ -68,7 +68,20 @@ export async function POST(req: NextRequest) {
 
       try {
         const response = await solveAcademicDoubt(body);
-        return apiSuccess(response, 200);
+        const formatted = {
+          ...response,
+          spoken_answer: response.spoken_answer || (response as any).response,
+          steps: (response.steps || []).map((s: any, idx: number) => ({
+            step_number: s.step_number || s.step || idx + 1,
+            title: s.title || `Step ${idx + 1}`,
+            explanation: s.explanation || '',
+            latex: s.latex || s.equation_or_code || (s.explanation && s.explanation.includes('$') ? s.explanation : undefined),
+            teaching_speech: s.teaching_speech,
+            check_question: s.check_question,
+            auto_notes: s.auto_notes,
+          })),
+        };
+        return apiSuccess(formatted, 200);
       } catch (err: any) {
         console.warn('Gemini cloud solver failed or unconfigured, falling back to local TUTO engine:', err?.message);
       }
