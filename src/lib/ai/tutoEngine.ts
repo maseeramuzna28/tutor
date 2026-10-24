@@ -66,7 +66,7 @@ export interface MicroLessonResult {
 // Configuration defaults
 const OLLAMA_BASE_URL = process.env.OLLAMA_API_BASE || 'http://127.0.0.1:11434';
 const TUTO_MODEL_NAME = process.env.TUTO_LOCAL_MODEL || 'tuto-tutor';
-const GEMINI_MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL_NAME = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
 // Clean speech helper (Acoustic Bot)
 export function sanitizeTextForSpeech(text: string): string {
@@ -835,7 +835,7 @@ export class TutoLLMEngine {
   // ==========================================================================
   private async callLocalTutoModel(question: string, _req: SolveRequest): Promise<TutoSolutionResult | null> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000); // 6s local inference budget
+    const timeout = setTimeout(() => controller.abort(), 800); // Fast 800ms check for local Ollama daemon
 
     try {
       const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
