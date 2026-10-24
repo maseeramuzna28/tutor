@@ -8,7 +8,11 @@ import {
   SolveRequest,
   QuestionStep,
   TutorIntent,
+  SocraticChatRequest,
+  SocraticChatResponse,
+  SocraticSessionState,
 } from '../types/database';
+import { interactiveSocraticChat as geminiSocraticChat } from './gemini';
 
 export interface FlowchartNode {
   id: string;
@@ -669,6 +673,302 @@ function generateAutonomousFallback(question: string): TutoSolutionResult {
 }
 
 // ============================================================================
+// Autonomous Socratic DSA & STEM Reasoner
+// Evaluates student turns, checks misconceptions, simplifies with analogies,
+// and enforces bite-sized teaching with conversational voice pauses.
+// ============================================================================
+function generateAutonomousSocraticTurn(req: SocraticChatRequest): SocraticChatResponse {
+  const msg = (req.message || '').trim().toLowerCase();
+  const state = req.sessionState || {};
+  const stepIndex = state.step_index || 1;
+  const isConfused = /\b(don'?t\s+understand|confused|lost|help|unclear|what\s+do\s+you\s+mean|no\s+idea|i\s+don'?t\s+know|idk|stuck|hard)\b/i.test(msg);
+  const isSimpler = /\b(simpler|simple|easy|easier|analogy|example|plain)\b/i.test(msg);
+
+  // Concept Identification
+  let concept = state.concept || '';
+  if (!concept || concept === 'Data Structures & Algorithms') {
+    if (/binary\s*search/i.test(msg)) concept = 'Binary Search';
+    else if (/merge\s*sort/i.test(msg)) concept = 'Merge Sort';
+    else if (/bubble\s*sort/i.test(msg)) concept = 'Bubble Sort';
+    else if (/recursion|recursive|call\s*stack|base\s*case/i.test(msg)) concept = 'Recursion & Call Stack';
+    else if (/linked\s*list/i.test(msg)) concept = 'Singly Linked List';
+    else if (/stack|queue|lifo|fifo/i.test(msg)) concept = 'Stacks & Queues';
+    else if (/dfs|bfs|graph|tree/i.test(msg)) concept = 'Graph Traversal (DFS/BFS)';
+    else concept = 'Data Structures & Algorithms';
+  }
+
+  // --------------------------------------------------------------------------
+  // Concept 1: Binary Search
+  // --------------------------------------------------------------------------
+  if (concept === 'Binary Search' || /binary\s*search/i.test(msg)) {
+    // Turn 1: Introduction with Dictionary Analogy
+    if (!state.step_index || (state.step_index === 1 && !state.pending_question)) {
+      return {
+        feedback: "Let's understand it together step by step!",
+        explanation: "Imagine searching for a word in a 1,000-page dictionary. Would you start from the first page and check every word, or open somewhere in the middle?",
+        check_question: "Would you start from the first page, or open somewhere in the middle?",
+        spoken_text: "Let's understand it together. Imagine searching for a word in a dictionary. Would you start from the first page and check every word, or open somewhere in the middle?",
+        sessionState: {
+          concept: 'Binary Search',
+          step_index: 1,
+          total_steps: 4,
+          is_complete: false,
+          mastered_points: [],
+          pending_question: 'Would you start from page 1, or open in the middle?',
+        },
+        quick_replies: ['Open in the middle', 'Start from the first page', "I don't know"],
+      };
+    }
+
+    // Turn 2: Middle element vs Sorting condition
+    if (state.step_index === 1 || state.pending_question?.includes('in the middle')) {
+      if (msg.includes('middle') || msg.includes('center') || msg.includes('half')) {
+        return {
+          feedback: "Exactly! That's the key idea.",
+          explanation: "Binary search checks the middle element and eliminates half of the remaining search space. For example, in sorted array `[2, 5, 8, 12, 16]`, if searching for `12`, the middle is `8`. Since `12 > 8`, we immediately eliminate the entire left half `[2, 5, 8]`!\n\nBut there is one important condition: the data must be sorted.",
+          code_snippet: "arr = [2, 5, 8, 12, 16]\n# mid = 8, target = 12\n# Since 12 > 8 -> target MUST be in right half: [12, 16]",
+          check_question: "Why do you think sorting matters for this elimination to work?",
+          spoken_text: "Exactly! That's the key idea. Binary search checks the middle element and eliminates half of the remaining search space. But there's one important condition: the data must be sorted. Why do you think sorting matters?",
+          sessionState: {
+            concept: 'Binary Search',
+            step_index: 2,
+            total_steps: 4,
+            is_complete: false,
+            mastered_points: ['Search space halved per step'],
+            pending_question: 'Why do you think sorting matters?',
+          },
+          quick_replies: ['So we know whether target is on the left or right', 'It works on unsorted lists too', "I don't understand"],
+        };
+      } else {
+        return {
+          feedback: "Starting from page 1 is linear search! It works, but it's much slower.",
+          explanation: "If a dictionary has 1,000 pages, checking one by one takes up to 1,000 checks. But if you flip directly to page 500 (the middle), you can eliminate 500 pages in a single second!",
+          check_question: "If our word is 'Tree' and the middle page starts with 'M', which half should we search next?",
+          spoken_text: "Starting from page one works, but it's slow. If you open in the middle and see the letter M, and your word is Tree, which half do you search next?",
+          sessionState: {
+            concept: 'Binary Search',
+            step_index: 1,
+            total_steps: 4,
+            is_complete: false,
+            mastered_points: [],
+            pending_question: 'Which half do we search next?',
+          },
+          quick_replies: ['The second half (after M)', 'The first half (before M)', "I don't know"],
+        };
+      }
+    }
+
+    // Turn 3: Evaluating sorting response (Misconception / Confusion / Correct)
+    if (state.step_index === 2 || state.pending_question?.includes('sorting')) {
+      if (isConfused || isSimpler) {
+        return {
+          feedback: "No worries at all! Let's make it super clear with a quick number game.",
+          explanation: "Imagine I pick a secret number between 1 and 100. If you guess 50 and I say 'Higher!', you instantly know the answer isn't 1 to 50. You eliminate 50 numbers at once because numbers 1 to 100 are naturally in order!",
+          check_question: "If I say 'Higher than 50', what number would you guess next to split the remaining half?",
+          spoken_text: "No worries at all! Think of guessing a number from 1 to 100. If I tell you it's higher than 50, what number would you guess next to cut the rest in half?",
+          sessionState: {
+            concept: 'Binary Search',
+            step_index: 2,
+            total_steps: 4,
+            is_complete: false,
+            mastered_points: ['Search space halved per step'],
+            pending_question: 'What number would you guess next to split the remaining 50 to 100 range?',
+          },
+          quick_replies: ['75', '60', '100'],
+        };
+      }
+
+      if (msg.includes('unsorted') || msg.includes('without sorting') || msg.includes('doesn\'t matter') || msg.includes('random')) {
+        return {
+          feedback: "Not quite, but that's a very common misconception!",
+          explanation: "If our array was unsorted, like `[12, 2, 16, 5, 8]`, and the middle is `16`. We cannot safely discard the left side, because `2` and `5` are smaller than 16 but scattered elsewhere! Without sorted order, comparing to the middle tells you nothing about where the target is hiding.",
+          code_snippet: "# In unsorted [12, 2, 16, 5, 8], mid is 16\n# We CANNOT discard either side safely!",
+          check_question: "If an array is completely unsorted, which search algorithm are we forced to use instead?",
+          spoken_text: "Not quite! In an unsorted list, the middle element doesn't tell us where the target is hiding. Without order, which search algorithm are we forced to use instead?",
+          sessionState: {
+            concept: 'Binary Search',
+            step_index: 2,
+            total_steps: 4,
+            is_complete: false,
+            mastered_points: ['Search space halved per step'],
+            pending_question: 'Which search algorithm are we forced to use if unsorted?',
+          },
+          quick_replies: ['Linear search (checking one by one)', 'Sort it first, then binary search', "I don't know"],
+        };
+      }
+
+      // Correct response for why sorting matters
+      return {
+        feedback: "Spot on! Because the array is sorted, comparing with the middle tells us with 100% certainty whether the target is in the left half or right half.",
+        explanation: "In code, we track the remaining range using two pointers: `low` and `high`. We calculate `mid = low + (high - low) // 2`.\n\n- If `arr[mid] < target`, we shift `low = mid + 1`.\n- If `arr[mid] > target`, we shift `high = mid - 1`.\n- If `arr[mid] == target`, we found it!",
+        code_snippet: "low, high = 0, len(arr) - 1\nwhile low <= high:\n    mid = low + (high - low) // 2\n    if arr[mid] == target: return mid\n    elif arr[mid] < target: low = mid + 1\n    else: high = mid - 1\nreturn -1",
+        check_question: "Because we divide the remaining elements by 2 on every single step, what is the time complexity of binary search?",
+        spoken_text: "Spot on! In code we track boundaries with low and high pointers. Since we cut the search space in half on every step, what is the time complexity of binary search?",
+        sessionState: {
+          concept: 'Binary Search',
+          step_index: 3,
+          total_steps: 4,
+          is_complete: false,
+          mastered_points: ['Search space halved per step', 'Sorted invariant', 'Two-pointer updates (low/high)'],
+          pending_question: 'What is the time complexity of binary search?',
+        },
+        quick_replies: ['O(log n)', 'O(n)', 'O(1)'],
+      };
+    }
+
+    // Turn 4: Time Complexity & Summary
+    if (state.step_index >= 3 || state.pending_question?.includes('time complexity')) {
+      if (msg.includes('log') || msg.includes('o(log n)') || msg.includes('logn')) {
+        return {
+          feedback: "Brilliant! O(log n) logarithmic time complexity is exactly right!",
+          explanation: "Even with 1,000,000 elements, binary search finds any item in at most 20 comparisons ($\log_2(1,000,000) \approx 20$)!\n\nYou've completely mastered Binary Search:\n1. **Sorted Invariant**: Guarantees discard validity.\n2. **Divide & Conquer**: Cuts the search space by half on every check.\n3. **Pointer Shrinkage**: `low` and `high` converge in $\\mathcal{O}(\\log n)$ steps.",
+          check_question: "Congratulations! You've mastered Binary Search. Would you like to dry-run an example array, or learn another algorithm like Merge Sort or Recursion next?",
+          spoken_text: "Brilliant! O of log n is spot on. For one million items, it only takes 20 checks. You have mastered binary search from first principles!",
+          sessionState: {
+            concept: 'Binary Search',
+            step_index: 4,
+            total_steps: 4,
+            is_complete: true,
+            mastered_points: [
+              'Search space halved per step',
+              'Sorted invariant',
+              'Two-pointer updates (low/high)',
+              'O(log n) Logarithmic Time Complexity',
+            ],
+            pending_question: 'Would you like to dry-run an array example, or learn Merge Sort next?',
+          },
+          quick_replies: ['Dry run an array example', 'Teach me Merge Sort next', 'Ask me a challenge problem'],
+        };
+      } else {
+        return {
+          feedback: "Remember: we don't inspect every item like linear search (which is O(n))!",
+          explanation: "Every single comparison cuts the remaining items in half: $N \\to N/2 \\to N/4 \\to \\dots \\to 1$. The number of divisions needed is $\\log_2(N)$, giving time complexity $\\mathcal{O}(\\log n)$.",
+          code_snippet: "# Number of items remaining:\n# 64 -> 32 -> 16 -> 8 -> 4 -> 2 -> 1 (only 6 steps!)",
+          check_question: "If an array has 64 elements, how many comparisons does binary search take in the worst case?",
+          spoken_text: "Remember, we don't inspect every item! Dividing by two each time gives O of log n. If an array has 64 elements, how many checks does binary search take?",
+          sessionState: {
+            concept: 'Binary Search',
+            step_index: 3,
+            total_steps: 4,
+            is_complete: false,
+            mastered_points: ['Search space halved per step', 'Sorted invariant'],
+            pending_question: 'How many comparisons for 64 elements?',
+          },
+          quick_replies: ['6 comparisons (2^6 = 64)', '64 comparisons', "I don't know"],
+        };
+      }
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // Concept 2: Recursion & Call Stack
+  // --------------------------------------------------------------------------
+  if (concept === 'Recursion & Call Stack' || /recursion|call\s*stack|base\s*case/i.test(msg)) {
+    if (!state.step_index || state.step_index === 1) {
+      return {
+        feedback: "Let's explore recursion together!",
+        explanation: "Think of Russian nesting dolls (Matryoshka). You open each doll only to find a smaller doll inside. But what must eventually happen so you don't keep opening dolls forever?",
+        check_question: "What must exist at the very center so you don't keep opening dolls forever?",
+        spoken_text: "Let's understand recursion together. Imagine Russian nesting dolls. You open each doll to find a smaller one inside. What must exist at the very center so you don't open dolls forever?",
+        sessionState: {
+          concept: 'Recursion & Call Stack',
+          step_index: 1,
+          total_steps: 3,
+          is_complete: false,
+          mastered_points: [],
+          pending_question: 'What must exist at the very center?',
+        },
+        quick_replies: ['A solid, innermost doll (base case)', 'Infinite dolls', "I don't know"],
+      };
+    }
+
+    if (state.step_index === 2) {
+      return {
+        feedback: "Spot on! That smallest, indivisible doll is called the Base Case.",
+        explanation: "Without a base case, a recursive function calls itself endlessly until memory runs out, triggering a `StackOverflowError`. Every recursive function needs two things:\n1. A **Base Case** that stops recursion.\n2. A **Recursive Step** that shrinks the input toward that base case.",
+        code_snippet: "def factorial(n):\n    if n <= 1:         # 1. Base case anchor\n        return 1\n    return n * factorial(n - 1) # 2. Recursive step",
+        check_question: "In calculating factorial of 3 (3!), what happens to the call stack as each function call waits for the next?",
+        spoken_text: "Spot on! That smallest doll is the base case. In calculating factorial of 3, what happens to the call stack as each function call waits for the next?",
+        sessionState: {
+          concept: 'Recursion & Call Stack',
+          step_index: 2,
+          total_steps: 3,
+          is_complete: false,
+          mastered_points: ['Base case prevents infinite recursion'],
+          pending_question: 'What happens to the call stack as calls wait?',
+        },
+        quick_replies: ['Stack frames pile up in memory (LIFO)', 'Calls run simultaneously', "I don't know"],
+      };
+    }
+
+    return {
+      feedback: "Brilliant! Stack frames pile up like a stack of plates, and then unwind in reverse order (LIFO).",
+      explanation: "When `factorial(1)` reaches the base case, it returns 1. Then `factorial(2)` unwinds to 2, and `factorial(3)` completes with 6! You've mastered: 1) Base Case Anchor, 2) Inductive Step, and 3) Call Stack Memory Frames.",
+      check_question: "You've mastered Recursion! Ready to dry-run another problem, or explore a tree traversal algorithm next?",
+      spoken_text: "Brilliant! Stack frames pile up and unwind in reverse order. You have mastered recursion and the call stack from first principles!",
+      sessionState: {
+        concept: 'Recursion & Call Stack',
+        step_index: 3,
+        total_steps: 3,
+        is_complete: true,
+        mastered_points: ['Base case invariant', 'LIFO Call stack winding and unwinding'],
+        pending_question: 'Ready to dry-run or explore tree traversal?',
+      },
+      quick_replies: ['Dry run an example', 'Learn Tree Traversal', 'Ask a challenge question'],
+    };
+  }
+
+  // --------------------------------------------------------------------------
+  // Concept 3: Generic Socratic Fallback for Any DSA or STEM Concept
+  // --------------------------------------------------------------------------
+  if (isConfused || isSimpler) {
+    return {
+      feedback: "No problem at all! Let's take a step back and look at this intuitively.",
+      explanation: `Think of ${concept} like building a bridge: before placing the heavy road deck, engineers anchor the support pillars into solid bedrock. Here, our anchor is understanding what single question we are solving before writing any code.`,
+      check_question: `What is the single most confusing part for you right now about ${concept}?`,
+      spoken_text: `No problem at all! Let's look at this intuitively. What feels like the trickiest part for you about ${concept}?`,
+      sessionState: {
+        concept,
+        step_index: Math.max(1, stepIndex),
+        total_steps: 4,
+        is_complete: false,
+        mastered_points: state.mastered_points || [],
+        pending_question: 'What is the trickiest part?',
+      },
+      quick_replies: ['How the algorithm begins', 'The time complexity', 'Show me a small example'],
+    };
+  }
+
+  // Normal progressive advance
+  const nextStep = Math.min(4, stepIndex + 1);
+  const isDone = nextStep >= 4;
+
+  return {
+    feedback: "Great thought! You're thinking about this in the right direction.",
+    explanation: `For ${concept}, the next key insight is seeing how the data structure maintains its invariant during updates. We keep operations efficient by avoiding redundant scans over the input.`,
+    code_snippet: `# Invariant check for ${concept}\ndef step_transition(state):\n    # Maintain boundary constraint\n    return updated_state`,
+    check_question: isDone
+      ? `You've covered the core foundation of ${concept}! Would you like to dry-run a code trace or test an edge case?`
+      : `What do you think is the best edge case to test when working with ${concept}?`,
+    spoken_text: isDone
+      ? `You've covered the core foundation of ${concept}! Would you like to test a code trace or an edge case?`
+      : `What do you think is the best edge case to test when working with ${concept}?`,
+    sessionState: {
+      concept,
+      step_index: nextStep,
+      total_steps: 4,
+      is_complete: isDone,
+      mastered_points: [...(state.mastered_points || []), `Step ${stepIndex} verified`],
+      pending_question: isDone ? 'Test code trace or edge case?' : 'What edge case to test?',
+    },
+    quick_replies: isDone
+      ? ['Dry run code trace', 'Test edge cases', 'Teach me another algorithm']
+      : ['Empty input (len = 0)', 'Single element', 'Duplicate items'],
+  };
+}
+
+
+// ============================================================================
 // Multi-Bot TUTO LLM Engine Class
 // ============================================================================
 export class TutoLLMEngine {
@@ -679,6 +979,32 @@ export class TutoLLMEngine {
       TutoLLMEngine.instance = new TutoLLMEngine();
     }
     return TutoLLMEngine.instance;
+  }
+
+  /**
+   * Interactive Socratic Chat: Turn-by-turn conversational tutor that teaches
+   * DSA and STEM concepts in bite-sized steps, checks understanding, adapts to
+   * student responses (correct, wrong, confused), and speaks naturally with pauses.
+   */
+  public async interactiveSocraticChat(req: SocraticChatRequest): Promise<SocraticChatResponse> {
+    const question = (req.message || '').trim();
+    if (!question) {
+      throw new Error('Message text is required.');
+    }
+
+    // Tier 1: Try Cloud Gemini if configured
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (apiKey && !apiKey.includes('your-')) {
+      try {
+        const geminiResult = await geminiSocraticChat(req);
+        if (geminiResult) return geminiResult;
+      } catch (err: any) {
+        console.warn('Gemini Socratic tutor failed, falling back to autonomous reasoner:', err?.message || err);
+      }
+    }
+
+    // Tier 2: Autonomous High-Precision Socratic DSA Reasoner (deterministic fallback)
+    return generateAutonomousSocraticTurn(req);
   }
 
   /**

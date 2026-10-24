@@ -8,6 +8,8 @@ import {
   NotificationItem,
   ClarificationOutcome,
   User,
+  SocraticChatResponse,
+  SocraticSessionState,
 } from "./types";
 import {
   DEMO_USERS,
@@ -89,6 +91,61 @@ class ApiClient {
     } catch {}
     // Fail open per Section 5 requirement
     return { isQuestion: true };
+  }
+
+  async socraticChat(
+    message: string,
+    conversation?: Array<{ role: 'user' | 'assistant'; content: string }>,
+    sessionState?: Partial<SocraticSessionState>
+  ): Promise<SocraticChatResponse> {
+    try {
+      const res = await fetch("/api/tutor/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, conversation, sessionState }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (err) {
+      console.warn("socraticChat network call failed, falling back to local:", err);
+    }
+
+    const msg = message.toLowerCase();
+    if (msg.includes("middle") || msg.includes("half")) {
+      return {
+        feedback: "Exactly! That's the key idea.",
+        explanation: "Binary search checks the middle element and eliminates half of the remaining search space. But there is one important condition: the data must be sorted.",
+        code_snippet: "arr = [2, 5, 8, 12, 16]\n# mid = 8, target = 12\n# Since 12 > 8 -> search right half [12, 16]!",
+        check_question: "Why do you think sorting matters for this elimination to work?",
+        spoken_text: "Exactly! That's the key idea. Binary search checks the middle element and eliminates half of the remaining search space. But there's one important condition: the data must be sorted. Why do you think sorting matters?",
+        sessionState: {
+          concept: "Binary Search",
+          step_index: 2,
+          total_steps: 4,
+          is_complete: false,
+          mastered_points: ["Search space halved per step"],
+          pending_question: "Why do you think sorting matters?",
+        },
+        quick_replies: ["So we know whether target is on the left or right", "It works on unsorted lists too", "I don't understand"],
+      };
+    }
+
+    return {
+      feedback: "Let's explore it together step by step!",
+      explanation: "Imagine searching for a word in a dictionary. Would you start from the first page and check every word, or open somewhere in the middle?",
+      check_question: "Would you start from page 1, or open in the middle?",
+      spoken_text: "Let's understand it together. Imagine searching for a word in a dictionary. Would you start from the first page and check every word, or open somewhere in the middle?",
+      sessionState: {
+        concept: "Binary Search",
+        step_index: 1,
+        total_steps: 4,
+        is_complete: false,
+        mastered_points: [],
+        pending_question: "Would you start from page 1, or open in the middle?",
+      },
+      quick_replies: ["Open in the middle", "Start from the first page", "I don't know"],
+    };
   }
 
   async solveDoubt(questionText: string): Promise<{

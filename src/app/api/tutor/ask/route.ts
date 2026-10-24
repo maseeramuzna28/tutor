@@ -47,10 +47,14 @@ export async function POST(req: NextRequest) {
       created_at: new Date().toISOString(),
     });
 
-    const steps = solution.steps.map((s: any) => ({
-      title: s.title || `Step ${s.step || 1}`,
+    const steps = solution.steps.map((s: any, idx: number) => ({
+      step_number: s.step || idx + 1,
+      title: s.title || `Step ${s.step || idx + 1}`,
       body: s.explanation + (s.equation_or_code ? `\n\n${s.equation_or_code}` : ''),
       latex: s.equation_or_code || (s.explanation.includes('$') ? s.explanation : undefined),
+      teaching_speech: s.teaching_speech,
+      check_question: s.check_question,
+      auto_notes: s.auto_notes,
     }));
 
     // Ensure flowchart nodes have stepIndex mapped for interactive stepping
@@ -71,6 +75,8 @@ export async function POST(req: NextRequest) {
       concept: solution.concept,
       root_cause: solution.root_cause,
       spoken_answer: solution.spoken_answer,
+      tutor_intro: solution.tutor_intro,
+      tutor_wrapup: solution.tutor_wrapup,
       analogy: solution.analogy,
       flowchart: {
         title: solution.flowchart?.title || `${solution.concept} — Pipeline Flowchart`,

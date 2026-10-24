@@ -317,6 +317,18 @@ export default function TutorPage() {
             <div className="space-y-2">
               <button
                 onClick={() => {
+                  const q = "Teach me binary search";
+                  setTranscript(q);
+                  handleConfirmDoubt(q);
+                }}
+                className="w-full text-left rounded-lg border border-red-200 bg-red-50/70 p-2.5 text-xs text-red-950 hover:bg-red-100/70 hover:border-red-300 transition-all"
+              >
+                &ldquo;Teach me binary search&rdquo;
+                <span className="block text-[10px] font-semibold text-red-700 mt-0.5">Algorithms • Socratic Interactive Session</span>
+              </button>
+
+              <button
+                onClick={() => {
                   const q = "Why do we subtract lambda times the identity matrix when finding eigenvalues?";
                   setTranscript(q);
                   handleConfirmDoubt(q);

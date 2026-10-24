@@ -183,3 +183,35 @@ export interface FacultyPulseResponse {
   }[];
   min_cluster_applied: number;
 }
+
+export interface SocraticChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface SocraticSessionState {
+  concept: string;
+  step_index: number;
+  total_steps: number;
+  is_complete: boolean;
+  mastered_points: string[];
+  pending_question?: string;
+}
+
+export interface SocraticChatRequest {
+  message: string;
+  conversation?: SocraticChatTurn[];
+  sessionState?: Partial<SocraticSessionState>;
+  style?: 'simpler' | 'analogy' | 'worked_example';
+}
+
+export interface SocraticChatResponse {
+  feedback: string;
+  explanation: string;
+  code_snippet?: string;
+  check_question: string;
+  spoken_text: string;
+  sessionState: SocraticSessionState;
+  quick_replies: string[];
+}
+

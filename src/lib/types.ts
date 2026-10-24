@@ -165,3 +165,11 @@ export interface ClarificationOutcome {
   helped: number;
   still_stuck: number;
 }
+
+export type {
+  SocraticChatTurn,
+  SocraticSessionState,
+  SocraticChatRequest,
+  SocraticChatResponse,
+} from "./types/database";
+

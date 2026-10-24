@@ -5,6 +5,8 @@ import {
   QuestionStep,
   TutorIntent,
   LearningSolveResponse,
+  SocraticChatRequest,
+  SocraticChatResponse,
 } from '../types/database';
 
 const SYSTEM_INSTRUCTION = `You are TUTO, a brilliant and empathetic Socratic professor and academic tutor for college students.
@@ -40,7 +42,52 @@ When explaining an academic doubt:
     }
   ],
   "tutor_wrapup": "Encouraging wrap-up congratulating the student on mastering this derivation"
+}
+`;
+
+export const SOCRATIC_SYSTEM_INSTRUCTION = `You are TUTO, a world-class, engaging, interactive Socratic academic tutor specializing in Data Structures and Algorithms (DSA) and collegiate STEM concepts.
+
+CRITICAL TEACHING PRINCIPLES:
+1. You are an INTERACTIVE TEACHER, NOT a lecturer and NOT a flat audio text-reader reciting an encyclopedia.
+2. Teach in small steps: Explain ONE concept at a time using simple, student-friendly language. NEVER dump an entire lecture or multi-step solution in one message.
+3. Use Socratic teaching: Ask short questions, give hints, and guide the student toward the answer instead of immediately revealing everything.
+4. Make sessions interactive: After explaining a concept, ask a quick question such as "Why do you think this works?", "What do you think happens next?", or a targeted conceptual/numerical check.
+5. Adapt dynamically to the student's actual response:
+   - IF CORRECT: Enthusiastically acknowledge WHY their reasoning is correct, present the next small concept step, and ask the next question.
+   - IF WRONG: Kindly identify the specific misconception without judgment, explain why that thought arises, offer a clear hint, and re-explain from another angle.
+   - IF CONFUSED ("I don't understand", "I'm confused", "I don't know"): Simplify further, provide a vivid everyday analogy (e.g., dictionary, card deck, cafeteria trays, flashlight in a maze), break it down, and ask a simpler checkpoint question.
+6. DSA Focus:
+   - Anchor explanations with concrete DSA examples: small dry runs, arrays (e.g. [2, 5, 8, 12, 16]), pointer updates (low, mid, high), call stack frames, or compact code/pseudocode (under 8 lines).
+7. Conversational Voice Delivery:
+   - "spoken_text" MUST be punchy, warm, natural, and under 50 words.
+   - NEVER read raw code, markdown, or LaTeX symbols word for word.
+   - Speak naturally with conversational signposts ("Let's see what happens here", "Notice the middle item:").
+   - Crucial: "spoken_text" MUST end with the question so the voice pauses naturally for the student to speak or respond.
+8. Teaching Structure:
+   - Introduce the concept briefly with an everyday hook.
+   - Explain one small part with an example.
+   - Ask the student a question.
+   - Respond based on their answer.
+   - Continue step by step.
+   - Finish with a quick understanding check and congratulatory summary when complete.
+
+OUTPUT FORMAT: Return ONLY a valid JSON object matching this schema:
+{
+  "feedback": "Warm, encouraging evaluation of student's response (or welcoming intro if turn 1)",
+  "explanation": "Bite-sized pedagogical explanation for this step (1-2 clear paragraphs)",
+  "code_snippet": "Optional concise code snippet, dry run, or trace (e.g. python/pseudocode/array)",
+  "check_question": "Single focused Socratic question for the student to answer next",
+  "spoken_text": "Short conversational voice script (under 50 words) that asks the question and pauses",
+  "sessionState": {
+    "concept": "Concept name",
+    "step_index": 1,
+    "total_steps": 4,
+    "is_complete": false,
+    "mastered_points": ["Key concept mastered so far"]
+  },
+  "quick_replies": ["Suggested Answer 1", "Suggested Answer 2", "I don't understand"]
 }`;
+
 
 const styles = {
   simpler: 'Use plain language and intuitive step-by-step reasoning.',
@@ -319,3 +366,156 @@ export async function detectQuestionIntent(text: string): Promise<boolean> {
     return true;
   }
 }
+
+export function parseSocraticResponse(responseText: string): SocraticChatResponse {
+  let cleaned = responseText.trim();
+  // Extract JSON object if surrounded by markdown or commentary
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  } else {
+    if (cleaned.startsWith('```json')) {
+      cleaned = cleaned.replace(/^```json\s*/i, '').replace(/```\s*$/i, '');
+    } else if (cleaned.startsWith('```')) {
+      cleaned = cleaned.replace(/^```\s*/i, '').replace(/```\s*$/i, '');
+    }
+  }
+
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    throw new Error('Gemini returned an invalid JSON Socratic response.');
+  }
+
+  if (!isRecord(parsed)) {
+    throw new Error('Gemini returned a non-object Socratic response.');
+  }
+
+  const feedback = typeof parsed.feedback === 'string' && parsed.feedback.trim().length > 0
+    ? parsed.feedback.trim()
+    : 'Great point!';
+  const explanation = typeof parsed.explanation === 'string' && parsed.explanation.trim().length > 0
+    ? parsed.explanation.trim()
+    : 'Let us break this down step by step.';
+  const check_question = typeof parsed.check_question === 'string' && parsed.check_question.trim().length > 0
+    ? parsed.check_question.trim()
+    : 'What do you think happens next?';
+  const code_snippet = typeof parsed.code_snippet === 'string' && parsed.code_snippet.trim().length > 0
+    ? parsed.code_snippet.trim()
+    : undefined;
+
+  let spoken_text = typeof parsed.spoken_text === 'string' ? parsed.spoken_text.trim() : '';
+  if (!spoken_text) {
+    spoken_text = `${feedback} ${check_question}`.slice(0, 200);
+  }
+
+  const rawState = isRecord(parsed.sessionState) ? parsed.sessionState : {};
+  const concept = typeof rawState.concept === 'string' && rawState.concept.trim().length > 0
+    ? rawState.concept.trim()
+    : 'Data Structures & Algorithms';
+  const step_index = typeof rawState.step_index === 'number' && Number.isInteger(rawState.step_index)
+    ? Math.max(1, rawState.step_index)
+    : 1;
+  const total_steps = typeof rawState.total_steps === 'number' && Number.isInteger(rawState.total_steps)
+    ? Math.max(step_index, rawState.total_steps)
+    : 4;
+  const is_complete = Boolean(rawState.is_complete || step_index >= total_steps);
+  const mastered_points = Array.isArray(rawState.mastered_points)
+    ? rawState.mastered_points.filter((p: unknown) => typeof p === 'string' && p.trim().length > 0)
+    : [];
+
+  let quick_replies: string[] = Array.isArray(parsed.quick_replies)
+    ? parsed.quick_replies.filter((r: unknown) => typeof r === 'string' && r.trim().length > 0).slice(0, 4)
+    : [];
+  if (quick_replies.length === 0) {
+    quick_replies = ['I understand, next step!', 'Could you explain simpler?', "I don't know"];
+  }
+
+  return {
+    feedback,
+    explanation,
+    code_snippet,
+    check_question,
+    spoken_text,
+    sessionState: {
+      concept,
+      step_index,
+      total_steps,
+      is_complete,
+      mastered_points,
+    },
+    quick_replies,
+  };
+}
+
+export async function interactiveSocraticChat(input: SocraticChatRequest): Promise<SocraticChatResponse> {
+  const message = typeof input?.message === 'string' ? input.message.trim() : '';
+  if (!message || message.length > 2000) {
+    throw new Error('Message must be between 1 and 2000 characters.');
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey.includes('your-')) {
+    throw new Error('GEMINI_API_KEY is not configured in the server environment.');
+  }
+
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  const historyText = (input.conversation || [])
+    .slice(-8)
+    .map((turn) => `${turn.role === 'user' ? 'Student' : 'Tutor'}: ${turn.content}`)
+    .join('\n');
+
+  const stateContext = input.sessionState ? `
+Session Tracking:
+- Target Concept: ${input.sessionState.concept || 'Data Structures & Algorithms'}
+- Current Step: ${input.sessionState.step_index || 1} of ${input.sessionState.total_steps || 4}
+- Pending Question previously asked to student: "${input.sessionState.pending_question || 'None'}"
+- Mastered points so far: ${(input.sessionState.mastered_points || []).join('; ') || 'None'}
+` : '';
+
+  const prompt = `${historyText ? `Recent Dialogue:\n${historyText}\n\n` : ''}${stateContext}
+Student's latest reply:
+"${message}"
+
+Evaluate the student's response Socratically:
+1. Did they answer the pending question correctly, incorrectly, or express confusion ("I don't understand")?
+2. Acknowledge their response explicitly in "feedback".
+3. Teach ONE bite-sized step with a DSA example/dry-run/analogy.
+4. Ask ONE focused question that invites the next response.
+5. Provide a short "spoken_text" (under 50 words) that finishes by asking the question so the voice pauses naturally.`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 25_000);
+
+  try {
+    const ai = new GoogleGenAI({ apiKey });
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: prompt,
+      config: {
+        systemInstruction: SOCRATIC_SYSTEM_INSTRUCTION,
+        responseMimeType: 'application/json',
+        maxOutputTokens: 1500,
+        temperature: 0.35,
+        abortSignal: controller.signal,
+      },
+    });
+
+    const responseText = response.text;
+    if (!responseText) {
+      throw new Error('Gemini returned an empty Socratic response.');
+    }
+
+    return parseSocraticResponse(responseText);
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error('Gemini Socratic tutor timed out. Please try again.');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+

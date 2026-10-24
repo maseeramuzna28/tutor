@@ -104,6 +104,12 @@ export const tutor = {
         text: `Demo explanation for "${stepTitle}". Once the AI backend is connected, this will rephrase the step with a simpler example.`,
       }),
     }),
+  // POST /tutor/chat  body: { message, conversation, sessionState }  returns SocraticChatResponse
+  chat: (body: any) =>
+    http<any>("/tutor/chat", {
+      method: "POST",
+      body,
+    }),
   // GET /tutor/history
   history: () => http<typeof db.doubts>("/tutor/history", { mock: () => db.doubts }),
 };

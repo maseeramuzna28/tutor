@@ -7,26 +7,31 @@ import {
   Play,
   Pause,
   RotateCcw,
-  SkipForward,
   Sparkles,
   HelpCircle,
   Lightbulb,
-  CheckCircle,
+  CheckCircle2,
   BookOpen,
-  MessageSquare,
-  ChevronRight,
+  Send,
   Mic,
+  MicOff,
   PenTool,
+  ArrowRight,
+  Code2,
+  Check,
 } from "lucide-react";
 import { StepItem, Question } from "@/lib/types";
+import { apiClient } from "@/lib/apiClient";
+import { SocraticChatResponse, SocraticChatTurn, SocraticSessionState } from "@/lib/types/database";
 
 interface SocraticTutorCompanionProps {
   question: Question;
   activeStepIndex: number;
   onStepChange: (index: number) => void;
-  onScribeToNotebook?: (step: StepItem) => void;
+  onScribeToNotebook?: (step: StepItem | any) => void;
   onAskFollowUp?: (query: string) => void;
   className?: string;
+  initialTopic?: string;
 }
 
 export default function SocraticTutorCompanion({
@@ -36,16 +41,34 @@ export default function SocraticTutorCompanion({
   onScribeToNotebook,
   onAskFollowUp,
   className = "",
+  initialTopic,
 }: SocraticTutorCompanionProps) {
+  // Conversational Turn State
+  const [conversation, setConversation] = useState<SocraticChatTurn[]>([]);
+  const [currentTurn, setCurrentTurn] = useState<SocraticChatResponse | null>(null);
+  const [sessionState, setSessionState] = useState<SocraticSessionState>({
+    concept: question?.concept || initialTopic || "Data Structures & Algorithms",
+    step_index: 1,
+    total_steps: Math.max(3, question?.steps?.length || 4),
+    is_complete: false,
+    mastered_points: [],
+  });
+
+  // UI & Audio Controls
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [speechRate, setSpeechRate] = useState<number>(1.0);
   const [isWaitingForStudent, setIsWaitingForStudent] = useState<boolean>(false);
-  const [socraticFeedback, setSocraticFeedback] = useState<string>("");
-  const [showAnalogyBox, setShowAnalogyBox] = useState<boolean>(false);
+  const [isThinking, setIsThinking] = useState<boolean>(false);
+  const [studentInput, setStudentInput] = useState<string>("");
+  const [isListeningMic, setIsListeningMic] = useState<boolean>(false);
+  const [speechSupported, setSpeechSupported] = useState<boolean>(false);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [showAnalogyBox, setShowAnalogyBox] = useState<boolean>(false);
+  const [scribedPill, setScribedPill] = useState<boolean>(false);
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const speechRecognitionRef = useRef<any>(null);
   const currentStep = question.steps[activeStepIndex] || question.steps[0];
 
   // Load available system voices
@@ -56,9 +79,8 @@ export default function SocraticTutorCompanion({
       const voices = window.speechSynthesis.getVoices();
       setAvailableVoices(voices);
 
-      // Prioritize natural warm teaching voices
       const naturalVoice =
-        voices.find((v) => /natural|samantha|karen|victoria|google uk english female|zira/i.test(v.name)) ||
+        voices.find((v) => /natural|samantha|karen|victoria|google uk english female|zira|george/i.test(v.name)) ||
         voices.find((v) => v.lang.startsWith("en-IN") || v.lang.startsWith("en-US") || v.lang.startsWith("en-GB")) ||
         voices[0];
 
@@ -67,60 +89,74 @@ export default function SocraticTutorCompanion({
 
     updateVoices();
     window.speechSynthesis.onvoiceschanged = updateVoices;
-  }, []);
 
-  // Cleanup on unmount
-  useEffect(() => {
+    // Check speech recognition
+    const hasSR = Boolean(
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    );
+    setSpeechSupported(hasSR);
+
     return () => {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
+      window.speechSynthesis.cancel();
+      if (speechRecognitionRef.current) {
+        try {
+          speechRecognitionRef.current.stop();
+        } catch {}
       }
     };
   }, []);
 
-  // Speak the active step conversationally
-  const teachActiveStep = (stepIndex: number, prependPraise?: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  // Initialize or re-sync when question text changes
+  useEffect(() => {
+    if (!question || !question.text) return;
+    const initialConcept = question.concept || initialTopic || "Data Structures & Algorithms";
+    setSessionState((prev) => ({
+      ...prev,
+      concept: initialConcept,
+      step_index: activeStepIndex + 1,
+      total_steps: Math.max(3, question.steps.length),
+    }));
+  }, [question, activeStepIndex, initialTopic]);
 
-    window.speechSynthesis.cancel();
-    setIsWaitingForStudent(false);
-    setSocraticFeedback("");
+  // Clean raw LaTeX and code symbols so speech sounds natural
+  const cleanForSpeech = (text: string) => {
+    return text
+      .replace(/\\mathcal\{O\}\((.*?)\)/gi, "O of $1")
+      .replace(/\$O\((.*?)\)\$/gi, "O of $1")
+      .replace(/O\((.*?)\)/gi, "O of $1")
+      .replace(/\\lambda/gi, "lambda")
+      .replace(/\$(.*?)\$/g, "$1")
+      .replace(/\*\*(.*?)\*\*/g, "$1")
+      .replace(/`{1,3}([^`]+)`{1,3}/g, "$1")
+      .replace(/\\le/gi, "less than or equal to")
+      .replace(/\\ge/gi, "greater than or equal to")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
 
-    const step = question.steps[stepIndex];
-    if (!step) {
-      // Completed all steps
-      teachWrapUp();
+  // Speak a conversational script, then pause and wait for student
+  const speakTutorTurn = (scriptText: string) => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setIsWaitingForStudent(true);
       return;
     }
 
-    // Build engaging teaching script
-    let scriptToSpeak = "";
-    if (prependPraise) {
-      scriptToSpeak += `${prependPraise}. `;
-    } else if (stepIndex === 0 && question.tutor_intro) {
-      scriptToSpeak += `${question.tutor_intro}. `;
-    }
-
-    const coreSpeech = step.teaching_speech || `Step ${stepIndex + 1}: ${step.title}. ${step.explanation.slice(0, 160)}`;
-    scriptToSpeak += coreSpeech;
-
-    // Append Socratic check question
-    const checkQ = step.check_question || "Does this step make intuitive sense so far?";
-    scriptToSpeak += ` ... ... ${checkQ}`;
-
-    const utterance = new SpeechSynthesisUtterance(scriptToSpeak);
+    window.speechSynthesis.cancel();
+    const cleanScript = cleanForSpeech(scriptText);
+    const utterance = new SpeechSynthesisUtterance(cleanScript);
     if (selectedVoice) utterance.voice = selectedVoice;
     utterance.rate = speechRate;
-    utterance.pitch = 1.05; // Slightly warmer teaching pitch
+    utterance.pitch = 1.05; // Friendly, warm teaching cadence
 
     utterance.onstart = () => {
       setIsPlaying(true);
+      setIsWaitingForStudent(false);
       utteranceRef.current = utterance;
     };
 
     utterance.onend = () => {
       setIsPlaying(false);
-      setIsWaitingForStudent(true); // Pause to check student understanding
+      setIsWaitingForStudent(true); // Tutor naturally pauses for student's answer!
     };
 
     utterance.onerror = () => {
@@ -131,84 +167,194 @@ export default function SocraticTutorCompanion({
     window.speechSynthesis.speak(utterance);
   };
 
-  const teachWrapUp = () => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-
-    const wrapupText =
-      question.tutor_wrapup ||
-      "Fantastic job! You've walked through the entire derivation from first principles. Take a look at your notebook on the right to review your notes.";
-
-    const utterance = new SpeechSynthesisUtterance(wrapupText);
-    if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = speechRate;
-
-    utterance.onstart = () => setIsPlaying(true);
-    utterance.onend = () => {
-      setIsPlaying(false);
-      setIsWaitingForStudent(false);
-    };
-
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleNextStep = () => {
-    if (activeStepIndex < question.steps.length - 1) {
-      const nextIdx = activeStepIndex + 1;
-      onStepChange(nextIdx);
-      teachActiveStep(nextIdx, "Great! Moving to the next step");
-    } else {
-      teachWrapUp();
-    }
-  };
-
-  const handleExplainSimpler = () => {
-    if (!currentStep) return;
-    const praise = "No worries at all, let's look at this intuitively";
-    const simplerText = `${praise}: Imagine what this step is doing. Instead of getting lost in symbols, think of ${currentStep.title} as our anchor constraint. Once this constraint holds, the rest of the problem follows naturally.`;
-
-    const utterance = new SpeechSynthesisUtterance(simplerText);
-    if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = 0.95;
-    utterance.onstart = () => setIsPlaying(true);
-    utterance.onend = () => {
-      setIsPlaying(false);
-      setIsWaitingForStudent(true);
-      setSocraticFeedback("💡 Simplified intuition explained. Ready for next step?");
-    };
-
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleShareAnalogy = () => {
-    setShowAnalogyBox(true);
-    const analogyText = `Here's an everyday analogy: ${question.root_cause || "Think of this mechanism like a water valve—before we measure output flow, we must verify the input pressure."}`;
-
-    const utterance = new SpeechSynthesisUtterance(analogyText);
-    if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = 0.95;
-    utterance.onstart = () => setIsPlaying(true);
-    utterance.onend = () => {
-      setIsPlaying(false);
-      setIsWaitingForStudent(true);
-    };
-
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleStopSpeech = () => {
+  // Stop tutor speech
+  const stopSpeech = () => {
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
     setIsPlaying(false);
-    setIsWaitingForStudent(false);
+    setIsWaitingForStudent(true);
   };
 
-  const handlePlayCurrent = () => {
-    teachActiveStep(activeStepIndex);
+  // Send student response to Socratic AI Tutor
+  const submitStudentTurn = async (messageToSend: string) => {
+    const trimmed = messageToSend.trim();
+    if (!trimmed || isThinking) return;
+
+    // Stop ongoing speech or listening
+    stopSpeech();
+    stopListening();
+    setStudentInput("");
+    setIsThinking(true);
+
+    const pendingQ =
+      currentTurn?.check_question ||
+      currentStep?.check_question ||
+      "Does this step make intuitive sense so far?";
+
+    const newHistoryTurn: SocraticChatTurn = { role: "user", content: trimmed };
+    const updatedHistory = [...conversation, newHistoryTurn];
+    setConversation(updatedHistory);
+
+    try {
+      const response = await apiClient.socraticChat(
+        trimmed,
+        updatedHistory,
+        {
+          ...sessionState,
+          pending_question: pendingQ,
+        }
+      );
+
+      setCurrentTurn(response);
+      setSessionState(response.sessionState);
+
+      // Add assistant turn to conversation
+      const assistantTurn: SocraticChatTurn = {
+        role: "assistant",
+        content: `${response.feedback} ${response.explanation} ${response.check_question}`,
+      };
+      setConversation([...updatedHistory, assistantTurn]);
+
+      // If step advanced, notify parent
+      if (response.sessionState.step_index && response.sessionState.step_index - 1 !== activeStepIndex) {
+        onStepChange(Math.min(question.steps.length - 1, response.sessionState.step_index - 1));
+      }
+
+      // Speak conversational script and pause for next student reply
+      speakTutorTurn(response.spoken_text || `${response.feedback} ${response.check_question}`);
+    } catch (err: any) {
+      console.error("Socratic tutor turn failed:", err);
+      // Fallback response
+      const fallbackReply = `Great observation! Let's continue from first principles: focus on how the boundary conditions keep the algorithm valid.`;
+      speakTutorTurn(fallbackReply);
+    } finally {
+      setIsThinking(false);
+    }
   };
+
+  // Handle student microphone input
+  const toggleListening = () => {
+    if (isListeningMic) {
+      stopListening();
+      return;
+    }
+
+    if (typeof window === "undefined") return;
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+
+    try {
+      const rec = new SR();
+      rec.lang = "en-IN";
+      rec.interimResults = true;
+      rec.continuous = false;
+
+      rec.onstart = () => {
+        setIsListeningMic(true);
+        stopSpeech();
+      };
+
+      rec.onresult = (e: any) => {
+        const transcript = Array.from(e.results)
+          .map((r: any) => r[0].transcript)
+          .join(" ");
+        setStudentInput(transcript);
+      };
+
+      rec.onerror = (e: any) => {
+        console.warn("Speech recognition error:", e);
+        setIsListeningMic(false);
+      };
+
+      rec.onend = () => {
+        setIsListeningMic(false);
+      };
+
+      speechRecognitionRef.current = rec;
+      rec.start();
+    } catch (err) {
+      console.warn("Failed to start speech recognition:", err);
+      setIsListeningMic(false);
+    }
+  };
+
+  const stopListening = () => {
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch {}
+    }
+    setIsListeningMic(false);
+  };
+
+  // Teach the active step from the question
+  const startTeachingCurrentStep = () => {
+    const step = question.steps[activeStepIndex] || question.steps[0];
+    const initialSpeech =
+      step.teaching_speech ||
+      `${step.title}. ${step.explanation.slice(0, 140)}. ${step.check_question || "Does this step make intuitive sense so far?"}`;
+
+    // Seed current turn view
+    setCurrentTurn({
+      feedback: activeStepIndex === 0 && question.tutor_intro ? question.tutor_intro : "Let's examine this step together.",
+      explanation: step.explanation,
+      code_snippet: step.latex,
+      check_question: step.check_question || "Why do you think this condition is required?",
+      spoken_text: initialSpeech,
+      sessionState: {
+        concept: question.concept,
+        step_index: activeStepIndex + 1,
+        total_steps: question.steps.length,
+        is_complete: activeStepIndex === question.steps.length - 1,
+        mastered_points: sessionState.mastered_points,
+      },
+      quick_replies: [
+        "Makes sense! Next step →",
+        "Could you explain simpler?",
+        "I don't understand",
+      ],
+    });
+
+    speakTutorTurn(initialSpeech);
+  };
+
+  // Quick Action: Explain simpler
+  const handleExplainSimpler = () => {
+    submitStudentTurn("Can you explain this simpler with a basic analogy?");
+  };
+
+  // Quick Action: Scribe active step / turn to digital notebook
+  const handleScribe = () => {
+    if (!onScribeToNotebook) return;
+    const stepToScribe = currentTurn
+      ? {
+          step_number: sessionState.step_index,
+          title: `${sessionState.concept} - Step ${sessionState.step_index}`,
+          explanation: currentTurn.explanation,
+          latex: currentTurn.code_snippet,
+          auto_notes: `${sessionState.concept}: ${currentTurn.check_question}`,
+        }
+      : currentStep;
+
+    onScribeToNotebook(stepToScribe);
+    setScribedPill(true);
+    setTimeout(() => setScribedPill(false), 2500);
+  };
+
+  const activeQuestionPrompt =
+    currentTurn?.check_question ||
+    currentStep?.check_question ||
+    "Why do you think this mechanism is required?";
+
+  const activeFeedback = currentTurn?.feedback;
+  const activeExplanation = currentTurn?.explanation || currentStep?.explanation;
+  const activeCodeSnippet = currentTurn?.code_snippet || currentStep?.latex;
+  const activeQuickReplies = currentTurn?.quick_replies || [
+    "Understood! Move forward →",
+    "Explain simpler",
+    "I don't understand",
+  ];
 
   return (
     <div className={`border border-stone-300 bg-white shadow-xs p-5 space-y-4 rounded-none ${className}`}>
@@ -219,16 +365,16 @@ export default function SocraticTutorCompanion({
             TUTO
           </div>
           <div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <span className="text-xs font-mono font-bold uppercase tracking-wider text-stone-900">
-                ACTIVE SOCRATIC TUTOR
+                SOCRATIC TUTOR • INTERACTIVE TEACHER
               </span>
               <span className="craft-badge craft-badge-red text-[10px]">
-                Interactive Teaching Mode
+                Active Dialogical Turn Mode
               </span>
             </div>
             <p className="text-[11px] text-stone-500 font-sans">
-              Engages you step by step • Explains mechanisms • Scribes notes
+              Teaches in small steps • Checks understanding • Responds to your voice & thoughts
             </p>
           </div>
         </div>
@@ -237,7 +383,7 @@ export default function SocraticTutorCompanion({
         <div className="flex items-center gap-2">
           {isPlaying ? (
             <button
-              onClick={handleStopSpeech}
+              onClick={stopSpeech}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider bg-red-600 text-white hover:bg-red-700 transition-colors"
             >
               <Pause className="h-3.5 w-3.5" />
@@ -245,11 +391,11 @@ export default function SocraticTutorCompanion({
             </button>
           ) : (
             <button
-              onClick={handlePlayCurrent}
+              onClick={startTeachingCurrentStep}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider bg-stone-900 text-white hover:bg-red-600 transition-colors"
             >
               <Play className="h-3.5 w-3.5" />
-              <span>Teach Step {activeStepIndex + 1}</span>
+              <span>Teach Step {sessionState.step_index}</span>
             </button>
           )}
 
@@ -268,124 +414,240 @@ export default function SocraticTutorCompanion({
         </div>
       </div>
 
+      {/* Progress & Concept Mastery Tracker */}
+      <div className="p-3 bg-stone-50 border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase font-bold text-stone-500">Topic:</span>
+          <span className="font-semibold text-stone-900">{sessionState.concept}</span>
+          <span className="text-stone-400">•</span>
+          <span className="text-stone-600">
+            Step {sessionState.step_index} of {sessionState.total_steps}
+          </span>
+          {sessionState.is_complete && (
+            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-bold uppercase tracking-wider">
+              Mastered ✓
+            </span>
+          )}
+        </div>
+
+        {/* Progress Bar */}
+        <div className="w-full sm:w-36 h-2 bg-stone-200 overflow-hidden">
+          <div
+            className="h-full bg-red-600 transition-all duration-300"
+            style={{
+              width: `${Math.min(100, (sessionState.step_index / sessionState.total_steps) * 100)}%`,
+            }}
+          />
+        </div>
+      </div>
+
       {/* Real-time Socratic Audio Teaching Beat */}
-      <div className={`p-4 border transition-all ${
-        isPlaying
-          ? "border-amber-400 bg-amber-50/70 shadow-xs"
-          : isWaitingForStudent
-          ? "border-emerald-300 bg-emerald-50/50 shadow-xs"
-          : "border-stone-200 bg-stone-50/50"
-      }`}>
+      <div
+        className={`p-4 border transition-all ${
+          isPlaying
+            ? "border-amber-400 bg-amber-50/70 shadow-xs"
+            : isWaitingForStudent
+            ? "border-emerald-400 bg-emerald-50/50 shadow-xs"
+            : isThinking
+            ? "border-blue-300 bg-blue-50/50 shadow-xs"
+            : "border-stone-200 bg-stone-50/50"
+        }`}
+      >
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span
               className={`h-2.5 w-2.5 rounded-full ${
-                isPlaying ? "bg-red-600 animate-ping" : isWaitingForStudent ? "bg-emerald-600" : "bg-stone-400"
+                isPlaying
+                  ? "bg-red-600 animate-ping"
+                  : isWaitingForStudent
+                  ? "bg-emerald-600 animate-pulse"
+                  : isThinking
+                  ? "bg-blue-600 animate-spin"
+                  : "bg-stone-400"
               }`}
             />
             <span className="text-xs font-mono font-bold uppercase text-stone-900">
               {isPlaying
                 ? "Tutor Explaining Live…"
+                : isThinking
+                ? "Tutor Evaluating Your Thought…"
                 : isWaitingForStudent
-                ? "Tutor Check-In: Your Turn"
-                : "Standby for Next Step"}
+                ? "Tutor Check-In: Your Turn to Respond"
+                : "Ready to Teach"}
             </span>
           </div>
 
           <span className="text-[11px] font-mono text-stone-500">
-            Step {activeStepIndex + 1} of {question.steps.length}
+            {isPlaying ? "Speaking short beat" : isWaitingForStudent ? "Waiting for you" : "Paused"}
           </span>
         </div>
 
-        {/* Spoken Teaching Script Display */}
-        <p className="text-xs text-stone-900 font-sans leading-relaxed italic">
-          &ldquo;
-          {currentStep?.teaching_speech ||
-            currentStep?.explanation ||
-            "Let's break this down from first principles together."}
-          &rdquo;
-        </p>
+        {/* Dynamic Tutor Feedback & Pedagogical Explanation */}
+        <div className="space-y-2 text-stone-900 font-sans">
+          {activeFeedback && (
+            <p className="text-xs font-semibold text-stone-900 bg-white/80 p-2.5 border border-stone-200 leading-relaxed">
+              &ldquo;{activeFeedback}&rdquo;
+            </p>
+          )}
 
-        {/* Active Understanding Check */}
-        {isWaitingForStudent && currentStep?.check_question && (
-          <div className="mt-3 pt-3 border-t border-emerald-200 flex items-start gap-2">
-            <HelpCircle className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-semibold text-emerald-950 font-sans">
-                {currentStep.check_question}
-              </p>
-              <p className="text-[11px] text-emerald-800 font-sans mt-0.5">
-                Choose an action below to continue or clarify:
-              </p>
+          <p className="text-xs leading-relaxed text-stone-800">
+            {activeExplanation}
+          </p>
+
+          {/* DSA Code Snippet or Dry Run */}
+          {activeCodeSnippet && (
+            <div className="mt-2 p-3 bg-stone-900 text-stone-100 font-mono text-[11px] overflow-x-auto border-l-2 border-red-600">
+              <div className="flex items-center gap-1.5 text-[10px] text-stone-400 uppercase tracking-wider mb-1">
+                <Code2 className="h-3 w-3 text-red-400" />
+                <span>DSA Example / Dry Run</span>
+              </div>
+              <pre className="whitespace-pre-wrap">{activeCodeSnippet}</pre>
             </div>
+          )}
+        </div>
+
+        {/* Active Socratic Check Question (Tutor pauses here) */}
+        <div className="mt-3 pt-3 border-t border-stone-200 flex items-start gap-2.5 bg-white p-3">
+          <HelpCircle className="h-4 w-4 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="text-[10px] font-mono font-bold uppercase text-emerald-800 tracking-wider block">
+              Socratic Check Question
+            </span>
+            <p className="text-xs font-semibold text-emerald-950 font-sans mt-0.5">
+              {activeQuestionPrompt}
+            </p>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Socratic Interactive Response Chips (When Tutor pauses for student) */}
-      <div className="space-y-2">
+      {/* Student Interactive Response Section */}
+      <div className="space-y-3 pt-2">
         <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-stone-500 block">
-          Interactive Tutor Responses:
+          Your Response to Tutor:
         </span>
 
+        {/* Quick Reply Chips (Tap to answer instantly) */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Got it, next step */}
-          <button
-            onClick={handleNextStep}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider bg-stone-900 text-white hover:bg-emerald-700 transition-colors"
-          >
-            <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
-            <span>
-              {activeStepIndex < question.steps.length - 1 ? "Understood! Next Step →" : "Finish Derivation ✓"}
-            </span>
-          </button>
+          {activeQuickReplies.map((replyText, idx) => (
+            <button
+              key={idx}
+              onClick={() => submitStudentTurn(replyText)}
+              disabled={isThinking}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono border border-stone-300 bg-white text-stone-800 hover:bg-stone-900 hover:text-white hover:border-stone-900 transition-all disabled:opacity-50"
+            >
+              <span>{replyText}</span>
+              <ArrowRight className="h-3 w-3 opacity-60" />
+            </button>
+          ))}
+        </div>
 
-          {/* Explain simpler */}
+        {/* Student Typed or Spoken Input Bar */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (studentInput.trim()) {
+              submitStudentTurn(studentInput);
+            }
+          }}
+          className="flex items-center gap-2 mt-2"
+        >
+          {/* Speech Mic Button */}
+          {speechSupported && (
+            <button
+              type="button"
+              onClick={toggleListening}
+              className={`p-2 border transition-all text-xs font-mono flex items-center justify-center shrink-0 ${
+                isListeningMic
+                  ? "bg-red-600 text-white border-red-700 animate-pulse"
+                  : "bg-stone-100 text-stone-700 border-stone-300 hover:bg-stone-200"
+              }`}
+              title={isListeningMic ? "Listening... click to stop" : "Speak your answer"}
+            >
+              {isListeningMic ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+            </button>
+          )}
+
+          <input
+            type="text"
+            value={studentInput}
+            onChange={(e) => setStudentInput(e.target.value)}
+            disabled={isThinking}
+            placeholder={
+              isListeningMic
+                ? "Listening to your spoken answer..."
+                : "Type your answer, misconception, or 'I don't understand'..."
+            }
+            className="flex-1 px-3 py-2 text-xs border border-stone-300 bg-white text-stone-900 placeholder:text-stone-400 font-sans focus:outline-none focus:border-stone-900"
+          />
+
           <button
-            onClick={handleExplainSimpler}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider border border-stone-300 bg-white text-stone-800 hover:bg-stone-50 hover:border-stone-900 transition-all"
+            type="submit"
+            disabled={!studentInput.trim() || isThinking}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-mono uppercase tracking-wider bg-stone-900 text-white hover:bg-emerald-700 transition-colors disabled:opacity-40 shrink-0"
           >
-            <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+            {isThinking ? (
+              <span>Evaluating…</span>
+            ) : (
+              <>
+                <Send className="h-3.5 w-3.5" />
+                <span>Send Answer</span>
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Auxiliary Socratic Actions */}
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-stone-200">
+          <button
+            type="button"
+            onClick={handleExplainSimpler}
+            disabled={isThinking}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono text-stone-700 hover:text-stone-900 hover:bg-stone-100 transition-colors"
+          >
+            <Lightbulb className="h-3 w-3 text-amber-500" />
             <span>Explain Simpler</span>
           </button>
 
-          {/* Everyday analogy */}
           <button
-            onClick={handleShareAnalogy}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider border border-stone-300 bg-white text-stone-800 hover:bg-stone-50 hover:border-stone-900 transition-all"
+            type="button"
+            onClick={() => submitStudentTurn("Can you give me another everyday analogy for this?")}
+            disabled={isThinking}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono text-stone-700 hover:text-stone-900 hover:bg-stone-100 transition-colors"
           >
-            <BookOpen className="h-3.5 w-3.5 text-blue-500" />
+            <BookOpen className="h-3 w-3 text-blue-500" />
             <span>Give Everyday Analogy</span>
           </button>
 
-          {/* Scribe to Notebook */}
-          {onScribeToNotebook && currentStep && (
+          {onScribeToNotebook && (
             <button
-              onClick={() => onScribeToNotebook(currentStep)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono uppercase tracking-wider border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 transition-all"
-              title="Stamp this formula & explanation into your hands-free notebook"
+              type="button"
+              onClick={handleScribe}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors ml-auto"
             >
-              <PenTool className="h-3.5 w-3.5 text-amber-700" />
-              <span>Scribe to Notebook</span>
+              {scribedPill ? <Check className="h-3 w-3 text-emerald-600" /> : <PenTool className="h-3 w-3 text-amber-600" />}
+              <span>{scribedPill ? "Scribed to Notebook ✓" : "Scribe to Notebook"}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Socratic Feedback Alert */}
-      {socraticFeedback && (
-        <div className="p-3 bg-stone-100 border border-stone-300 text-xs text-stone-800 font-mono">
-          {socraticFeedback}
-        </div>
-      )}
-
-      {/* Analogy Box */}
-      {showAnalogyBox && question.root_cause && (
-        <div className="p-3.5 bg-blue-50/70 border border-blue-200 text-xs text-blue-950 font-sans leading-relaxed">
-          <span className="font-mono font-bold text-[10px] text-blue-700 block uppercase mb-1">
-            Intuitive Analogy
+      {/* Mastered Insights Pills */}
+      {sessionState.mastered_points && sessionState.mastered_points.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-stone-200">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-stone-400 block mb-1.5">
+            Key Concepts Mastered So Far:
           </span>
-          {question.root_cause}
+          <div className="flex flex-wrap gap-1.5">
+            {sessionState.mastered_points.map((pt, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-mono"
+              >
+                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                <span>{pt}</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>

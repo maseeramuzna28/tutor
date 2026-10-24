@@ -10,6 +10,8 @@ import { Mic, ArrowRight } from "@/components/Icons";
 import { timeAgo } from "@/utils/format";
 import RequireRole from "@/components/App/RequireRole";
 import VisualFlowchart, { MathBlock } from "@/components/ui/VisualFlowchart";
+import SocraticTutorCompanion from "@/components/SocraticTutorCompanion";
+import { Question } from "@/lib/types";
 
 function AnswerView({
   answer,
@@ -85,14 +87,44 @@ function AnswerView({
       setSpeaking(false);
       return;
     }
-    const text = answer.steps
-      .slice(0, shown)
-      .map((s, i) => `Step ${i + 1}. ${s.title}. ${s.body}`)
-      .join(" ");
-    const u = new SpeechSynthesisUtterance(text);
+    const currentStep = answer.steps[shown - 1] || answer.steps[0];
+    const text =
+      (currentStep as any).teaching_speech ||
+      `Step ${shown}. ${currentStep.title}. ${(currentStep.body || '').split('.')[0]}. Does this make intuitive sense?`;
+    const cleanText = text
+      .replace(/\$(.*?)\$/g, '$1')
+      .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
+      .replace(/\\mathcal\{O\}\((.*?)\)/gi, 'O of $1');
+    const u = new SpeechSynthesisUtterance(cleanText);
+    u.rate = 1.0;
+    u.pitch = 1.05;
     u.onend = () => setSpeaking(false);
     window.speechSynthesis.speak(u);
     setSpeaking(true);
+  };
+
+  const adaptedQuestion: Question = {
+    id: answer.id,
+    text: answer.question,
+    spoken_answer: (answer as any).spoken_answer || answer.steps[0]?.body || "",
+    tutor_intro: (answer as any).tutor_intro,
+    tutor_wrapup: (answer as any).tutor_wrapup,
+    steps: answer.steps.map((s: any, idx: number) => ({
+      step_number: s.step_number || s.step || idx + 1,
+      title: s.title || `Step ${idx + 1}`,
+      explanation: s.body || s.explanation || "",
+      latex: s.latex || s.equation_or_code,
+      teaching_speech: s.teaching_speech || `Step ${idx + 1}: ${s.title}. ${(s.body || '').split('.')[0]}.`,
+      check_question: s.check_question || "Does this step make intuitive sense so far?",
+      auto_notes: s.auto_notes,
+    })),
+    subject: answer.subject || "Data Structures & Algorithms",
+    concept: answer.concept || "Root-Cause Learning",
+    root_cause: answer.root_cause || "Fundamental Invariant Transition",
+    visibility: "private",
+    resolution_status: "open",
+    college: "Campus",
+    created_at: new Date().toISOString(),
   };
 
   return (
@@ -130,9 +162,18 @@ function AnswerView({
               boxShadow: "0 0 8px rgba(16, 185, 129, 0.6)",
             }}
           />
-          AI Socratic Solution Active • {(answer as any).model || "TUTO Academic Engine"}
+          Interactive Socratic Session Active • {(answer as any).model || "TUTO Academic Engine"}
         </div>
       )}
+
+      {/* Socratic Interactive AI Tutor Companion */}
+      <div style={{ marginBottom: "20px" }}>
+        <SocraticTutorCompanion
+          question={adaptedQuestion}
+          activeStepIndex={Math.max(0, shown - 1)}
+          onStepChange={(newIdx) => setShown(newIdx + 1)}
+        />
+      </div>
 
       {/* Visual Pipeline Flowchart & Concept Diagram */}
       <VisualFlowchart
