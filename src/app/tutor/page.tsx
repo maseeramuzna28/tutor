@@ -4,7 +4,7 @@ import { useState } from "react";
 import VoiceMicButton, { MicState } from "@/components/VoiceMicButton";
 import MathStepRenderer from "@/components/MathStepRenderer";
 import { apiClient } from "@/lib/apiClient";
-import { Question } from "@/lib/types";
+import { Question, StepItem } from "@/lib/types";
 import {
   Sparkles,
   Volume2,
@@ -15,17 +15,24 @@ import {
   AlertCircle,
   Square,
   Lock,
+  PenTool,
+  BookOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { DoubtButton } from "@/components/evil-buttons/DoubtButton";
 import { RevealButton } from "@/components/evil-buttons/RevealButton";
 import TutoLoader from "@/components/TutoLoader";
 import PdfTutorWorkspace from "@/components/PdfTutorWorkspace";
+import HandsfreeNotebookSurface from "@/components/HandsfreeNotebookSurface";
+import SocraticTutorCompanion from "@/components/SocraticTutorCompanion";
 
 export default function TutorPage() {
   const [micState, setMicState] = useState<MicState>("idle");
   const [transcript, setTranscript] = useState("");
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
+  const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
+  const [notebookStepToScribe, setNotebookStepToScribe] = useState<StepItem | null>(null);
+  const [standbyTab, setStandbyTab] = useState<"standby" | "notebook">("standby");
   const [isSpeakingAudio, setIsSpeakingAudio] = useState(false);
   const [typedInput, setTypedInput] = useState("");
   const [thinkingStep, setThinkingStep] = useState<string>("");
@@ -49,7 +56,7 @@ export default function TutorPage() {
     setThinkingStep("Analyzing conceptual mechanisms…");
     await new Promise((r) => setTimeout(r, 350));
 
-    setThinkingStep("Generating step-by-step derivation…");
+    setThinkingStep("Generating step-by-step Socratic teaching derivation…");
     const solution = await apiClient.solveDoubt(textToSolve);
 
     const newQuestion = await apiClient.createPrivateQuestion({
@@ -61,10 +68,20 @@ export default function TutorPage() {
       subject: solution.subject,
     });
 
+    // Attach Socratic teaching beats
+    newQuestion.tutor_intro = (solution as any).tutor_intro;
+    newQuestion.tutor_wrapup = (solution as any).tutor_wrapup;
+    newQuestion.steps = (solution.steps || []).map((s: any, idx: number) => ({
+      ...s,
+      teaching_speech: s.teaching_speech,
+      check_question: s.check_question,
+      auto_notes: s.auto_notes,
+    }));
+
     setActiveQuestion(newQuestion);
+    setActiveStepIndex(0);
     setThinkingStep("");
-    setMicState("speaking");
-    playSpokenAnswer(solution.spoken_answer);
+    setMicState("idle");
   };
 
   const handleStopExecution = () => {
@@ -348,48 +365,57 @@ export default function TutorPage() {
                 <h3 className="text-base font-bold text-slate-900 tracking-tight">{activeQuestion.text}</h3>
               </div>
 
-              {/* Spoken Answer Audio Card */}
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold text-indigo-900 flex items-center gap-1.5">
-                    <Volume2 className="h-4 w-4 text-indigo-600" />
-                    Spoken Audio Explanation
-                  </span>
-                  {isSpeakingAudio ? (
-                    <button
-                      onClick={stopAudio}
-                      className="rounded-lg border border-red-200 bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-200 transition-all"
-                    >
-                      Stop Audio
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => playSpokenAnswer(activeQuestion.spoken_answer)}
-                      className="rounded-lg border border-indigo-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 shadow-xs transition-all"
-                    >
-                      Replay Voice
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-indigo-950 leading-relaxed italic">
-                  &ldquo;{activeQuestion.spoken_answer}&rdquo;
-                </p>
-              </div>
+              {/* Socratic Interactive Voice Tutor Companion */}
+              <SocraticTutorCompanion
+                question={activeQuestion}
+                activeStepIndex={activeStepIndex}
+                onStepChange={(newIdx) => setActiveStepIndex(newIdx)}
+                onScribeToNotebook={(step) => setNotebookStepToScribe(step)}
+              />
 
               {/* Conceptual Mechanism Identified */}
-              <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 text-xs">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
+              <div className="rounded-none border border-amber-300 bg-amber-50/70 p-3.5 text-xs">
+                <p className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-900">
                   Conceptual Mechanism Identified
                 </p>
-                <p className="text-slate-700 mt-1 leading-relaxed">{activeQuestion.root_cause}</p>
+                <p className="text-stone-800 mt-1 leading-relaxed font-sans">{activeQuestion.root_cause}</p>
               </div>
 
-              {/* Step-by-Step KaTeX Math Equations */}
+              {/* Step-by-Step KaTeX Math Equations with Synchronized Highlighting */}
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">
-                  Mathematical Derivation:
-                </h4>
-                <MathStepRenderer steps={activeQuestion.steps} />
+                <div className="flex items-center justify-between mb-2.5">
+                  <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-stone-700">
+                    Mathematical Derivation Steps:
+                  </h4>
+                  <span className="text-[10px] font-mono text-stone-500">
+                    Click any step to jump tutor voice
+                  </span>
+                </div>
+                <MathStepRenderer
+                  steps={activeQuestion.steps}
+                  activeStepNumber={activeStepIndex + 1}
+                  onSelectStep={(stepNum) => setActiveStepIndex(stepNum - 1)}
+                />
+              </div>
+
+              {/* Integrated Hands-Free Pen & Digital Notebook Surface ("within the tutor thing only") */}
+              <div className="mt-8 pt-6 border-t border-stone-300">
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-red-600 animate-pulse" />
+                    <h4 className="text-xs font-mono font-bold uppercase tracking-wider text-stone-900">
+                      TUTO NOTEBOOK • HANDS-FREE PEN & SCRIBE SURFACE
+                    </h4>
+                  </div>
+                  <span className="text-[10px] font-mono text-stone-500">
+                    Auto-captures formulas & voice thoughts
+                  </span>
+                </div>
+
+                <HandsfreeNotebookSurface
+                  activeStep={activeQuestion.steps[activeStepIndex] || notebookStepToScribe}
+                  activeConcept={activeQuestion.concept}
+                />
               </div>
 
               {/* Privacy Choice: Post Anonymously */}
@@ -463,15 +489,48 @@ export default function TutorPage() {
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center border border-stone-200 bg-white p-12 text-center h-full min-h-[440px] rounded-none">
-              <div className="flex h-12 w-12 items-center justify-center rounded-none bg-stone-100 border border-stone-300 text-stone-900 mb-4 font-mono">
-                <Sparkles className="h-5 w-5 text-red-600" />
+            <div className="space-y-4">
+              {/* Standby Tab Header */}
+              <div className="flex border border-stone-300 bg-stone-100 p-1">
+                <button
+                  onClick={() => setStandbyTab("standby")}
+                  className={`flex-1 py-1.5 text-xs font-mono uppercase tracking-wider transition-all ${
+                    standbyTab === "standby"
+                      ? "bg-white text-stone-900 font-bold shadow-xs"
+                      : "text-stone-500 hover:text-stone-900"
+                  }`}
+                >
+                  Question Standby
+                </button>
+                <button
+                  onClick={() => setStandbyTab("notebook")}
+                  className={`flex-1 py-1.5 text-xs font-mono uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 ${
+                    standbyTab === "notebook"
+                      ? "bg-white text-stone-900 font-bold shadow-xs"
+                      : "text-stone-500 hover:text-stone-900"
+                  }`}
+                >
+                  <PenTool className="h-3 w-3 text-red-600" />
+                  <span>Hands-Free Notebook Studio</span>
+                </button>
               </div>
-              <h3 className="text-base font-serif font-bold text-stone-900">Direct Question Standby</h3>
-              <p className="text-xs text-stone-500 max-w-sm mt-1 leading-relaxed font-sans">
-                Click the microphone to speak your question directly or pick an example inquiry from the left to view step-by-step
-                reasoning.
-              </p>
+
+              {standbyTab === "standby" ? (
+                <div className="flex flex-col items-center justify-center border border-stone-200 bg-white p-12 text-center h-full min-h-[440px] rounded-none">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-none bg-stone-100 border border-stone-300 text-stone-900 mb-4 font-mono">
+                    <Sparkles className="h-5 w-5 text-red-600" />
+                  </div>
+                  <h3 className="text-base font-serif font-bold text-stone-900">
+                    Interactive Socratic Tutor Standby
+                  </h3>
+                  <p className="text-xs text-stone-500 max-w-sm mt-1 leading-relaxed font-sans">
+                    Click the microphone on the left to speak your doubt directly, or select an example inquiry. The
+                    Socratic voice tutor will teach the derivation step-by-step and auto-scribe formulas onto your notebook.
+                  </p>
+                </div>
+              ) : (
+                <HandsfreeNotebookSurface />
+              )}
             </div>
           )}
         </div>

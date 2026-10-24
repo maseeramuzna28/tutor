@@ -81,15 +81,21 @@ export async function POST(req: NextRequest) {
       title: s.title || `Step ${idx + 1}`,
       explanation: s.explanation || '',
       latex: s.equation_or_code || (s.explanation && s.explanation.includes('$') ? s.explanation : undefined),
+      teaching_speech: s.teaching_speech,
+      check_question: s.check_question,
+      auto_notes: s.auto_notes,
     }));
 
     return apiSuccess({
       spoken_answer: localSolution.spoken_answer || localSolution.response,
+      tutor_intro: localSolution.tutor_intro,
+      tutor_wrapup: localSolution.tutor_wrapup,
       concept: localSolution.concept || 'Foundational Concept',
       root_cause: localSolution.root_cause || 'Core mathematical or conceptual relationship',
       subject: localSolution.subject || 'STEM / Academic',
       steps: formattedSteps,
       flowchart: localSolution.flowchart,
+      analogy: localSolution.analogy,
     }, 200);
   } catch (err: any) {
     const message = err instanceof Error ? err.message : 'Failed to solve academic doubt.';

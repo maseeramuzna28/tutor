@@ -39,6 +39,8 @@ export interface TutoSolutionResult {
   topic: string;
   response: string;
   spoken_answer: string;
+  tutor_intro?: string;
+  tutor_wrapup?: string;
   refresher: string;
   steps: QuestionStep[];
   analogy: string;
@@ -516,6 +518,42 @@ const DOMAIN_KNOWLEDGE_TEMPLATES: DomainTemplate[] = [
 ];
 
 // ============================================================================
+// Socratic Teaching Enricher
+// ============================================================================
+function enrichWithTeaching(steps: any[], concept: string): QuestionStep[] {
+  return steps.map((s, idx) => {
+    let speech = s.teaching_speech;
+    if (!speech) {
+      const cleanExpl = (s.explanation || '').replace(/\$\$/g, '').replace(/\$/g, '').trim();
+      speech = `Alright, let's look at Step ${idx + 1}: ${s.title}. Notice what happens here—${cleanExpl.slice(0, 150)}${cleanExpl.length > 150 ? '...' : ''}. This is our key transition.`;
+    }
+    let check = s.check_question;
+    if (!check) {
+      const prompts = [
+        `Does this step make intuitive sense so far?`,
+        `Notice the key substitution here—do you see why it holds?`,
+        `Would you like me to share an everyday analogy for this step?`,
+        `Ready for the next step, or should we break down the formula further?`,
+      ];
+      check = prompts[idx % prompts.length];
+    }
+    let notes = s.auto_notes;
+    if (!notes) {
+      notes = s.equation_or_code ? `${s.title}: ${s.equation_or_code}` : `${s.title} — ${s.explanation.slice(0, 75)}`;
+    }
+    return {
+      step: s.step || idx + 1,
+      title: s.title,
+      explanation: s.explanation,
+      equation_or_code: s.equation_or_code,
+      teaching_speech: speech,
+      check_question: check,
+      auto_notes: notes,
+    };
+  });
+}
+
+// ============================================================================
 // Fallback Generator for Arbitrary Academic Doubts
 // ============================================================================
 function generateAutonomousFallback(question: string): TutoSolutionResult {
@@ -535,9 +573,11 @@ function generateAutonomousFallback(question: string): TutoSolutionResult {
         root_cause: tmpl.root_cause,
         topic: tmpl.concept,
         response: `Here is the first-principles decomposition of ${tmpl.concept}. We address the core prerequisite gap: ${tmpl.root_cause}.`,
-        spoken_answer: `${tmpl.concept}: ${tmpl.analogy.split('.')[0]}. Step by step, we isolate the invariant condition and derive the solution.`,
+        spoken_answer: `Let's understand ${tmpl.concept}. ${tmpl.analogy.split('.')[0]}. Step by step, we isolate the invariant condition and derive the solution together.`,
+        tutor_intro: `Hello! Let's explore ${tmpl.concept} together. I'll guide you through each step and auto-scribe our key formulas into your notebook.`,
+        tutor_wrapup: `Great job working through ${tmpl.concept}! Take a glance at your hands-free notebook to review your formulas and notes.`,
         refresher: tmpl.refresher,
-        steps: tmpl.steps,
+        steps: enrichWithTeaching(tmpl.steps, tmpl.concept),
         analogy: tmpl.analogy,
         flowchart: {
           title: `${tmpl.concept} — Pipeline Flowchart`,
@@ -571,6 +611,31 @@ function generateAutonomousFallback(question: string): TutoSolutionResult {
     subject = 'Economics & Decision Science';
   }
 
+  const genericSteps = [
+    {
+      step: 1,
+      title: `Define Boundary Constraints & System State for ${cleanTitle}`,
+      explanation: `Identify what inputs and conditions define "${cleanTitle}". Explicitly write down boundary constraints, system variables, and expected target outputs.`,
+      equation_or_code: '$$\\text{State}_0 = \\{ \\text{Inputs}, \\text{Constraints} \\}$$',
+    },
+    {
+      step: 2,
+      title: 'Isolate Governing Theorem or State Invariant',
+      explanation: `Determine the primary mathematical invariant, algorithmic rule, or governing relation that remains constant throughout the ${cleanTitle} process.`,
+      equation_or_code: '$$\\Delta I = 0 \\implies f(x) = \\text{Invariant}$$',
+    },
+    {
+      step: 3,
+      title: 'Stepwise Transformation & Execution',
+      explanation: `Carry out each intermediate state transition methodically, checking consistency at every milestone.`,
+    },
+    {
+      step: 4,
+      title: 'Verify Against Boundary Conditions',
+      explanation: `Validate the derived result against extreme limits, edge cases (such as zero, null, or infinity), and verify that all invariants hold.`,
+    },
+  ];
+
   return {
     intent: 'question',
     subject,
@@ -578,30 +643,11 @@ function generateAutonomousFallback(question: string): TutoSolutionResult {
     root_cause: `Misunderstanding the underlying boundary conditions and transition invariants of ${cleanTitle}`,
     topic: cleanTitle,
     response: `Step-by-step academic breakdown for "${cleanTitle}". We isolate the fundamental governing principles before deriving the solution.`,
-    spoken_answer: `To understand ${cleanTitle}, we first establish the boundary constraints, identify the core transformation mechanism, and verify the resulting invariant.`,
+    spoken_answer: `To understand ${cleanTitle}, we first establish the boundary constraints, identify the core transformation mechanism, and verify the resulting invariant together.`,
+    tutor_intro: `Welcome! Let's break down "${cleanTitle}" step by step so the intuition clicks naturally.`,
+    tutor_wrapup: `You've derived the foundation of ${cleanTitle}! Check your notebook surface on the right for your compiled study notes.`,
     refresher: `Review the foundational definitions and boundary constraints governing ${cleanTitle} before applying complex operations.`,
-    steps: [
-      {
-        step: 1,
-        title: `Define Boundary Constraints & System State for ${cleanTitle}`,
-        explanation: `Identify what inputs and conditions define "${cleanTitle}". Explicitly write down boundary constraints, system variables, and expected target outputs.`,
-      },
-      {
-        step: 2,
-        title: 'Isolate Governing Theorem or State Invariant',
-        explanation: `Determine the primary mathematical invariant, algorithmic rule, or governing relation that remains constant throughout the ${cleanTitle} process.`,
-      },
-      {
-        step: 3,
-        title: 'Stepwise Transformation & Execution',
-        explanation: `Carry out each intermediate state transition methodically, checking consistency at every milestone.`,
-      },
-      {
-        step: 4,
-        title: 'Verify Against Boundary Conditions',
-        explanation: `Validate the derived result against extreme limits, edge cases (such as zero, null, or infinity), and verify that all invariants hold.`,
-      },
-    ],
+    steps: enrichWithTeaching(genericSteps, cleanTitle),
     analogy: `Think of ${cleanTitle} like an arch bridge: the keystone in the center holds all the load only because every supporting block beneath it is cut to the exact angle. In the same way, this concept works because each intermediate step is anchored to the previous invariant.`,
     flowchart: {
       title: `${cleanTitle} — Execution Pipeline Flowchart`,

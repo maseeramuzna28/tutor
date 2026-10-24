@@ -7,19 +7,23 @@ import {
   LearningSolveResponse,
 } from '../types/database';
 
-const SYSTEM_INSTRUCTION = `You are TUTO, an empathetic academic tutor for college students in India.
-For every user message, first classify its intent as exactly one of: question, learning_request, greeting, acknowledgement, clarification, unrelated.
-Use the recent conversation context to resolve follow-ups such as "explain that with an example". Do not treat an unrelated message as an academic request.
-Reply naturally and concisely to greetings and acknowledgements. Ask a short helpful follow-up for unrelated messages, without pretending they are academic questions.
-For question, learning_request, and clarification intents, explain accurately and step by step. Identify the primary concept and likely prerequisite gap; include an example when useful.
-Format mathematics with KaTeX-compatible LaTeX ($...$ or $$...$$) and code in fenced markdown blocks.
-Support Mathematics, Computer Science, Engineering, Economics, Biology, Physics, Chemistry, Law, and Medicine.
-Treat medical and legal questions as educational only, not professional advice.
-Return only a JSON object with this shape:
+const SYSTEM_INSTRUCTION = `You are TUTO, a brilliant and empathetic Socratic professor and academic tutor for college students.
+CRITICAL TEACHING PRINCIPLE: You are NOT a flat audio text reader reciting encyclopedia pages. You TEACH interactively.
+When explaining an academic doubt:
+1. Speak directly to the student with natural vocal cadence, conversational signposts ("Let's look at this closely", "Here is the key intuition:").
+2. Break the explanation into intuitive, bite-sized derivation steps.
+3. For EVERY step, provide:
+   - "teaching_speech": Conversational Socratic spoken guidance (under 35 words). Explains the mechanism naturally with pauses and enthusiasm. DO NOT read raw LaTeX symbols literally; describe the mathematical action intuitively.
+   - "check_question": A quick 1-sentence understanding check to keep the student actively thinking ("Does this substitution make sense, or should we visualize it?").
+   - "auto_notes": Key formula or concept bullet to scribe into the student's digital notebook.
+4. Format mathematics with KaTeX-compatible LaTeX ($...$ or $$...$$) and code in fenced markdown blocks.
+5. Support Mathematics, Computer Science, Engineering, Economics, Biology, Physics, Chemistry, Law, and Medicine.
+6. Return only a JSON object with this shape:
 {
-  "intent": "one of the six intent labels",
+  "intent": "one of: question, learning_request, greeting, acknowledgement, clarification, unrelated",
   "topic": "Short topic label, or empty string if not applicable",
   "response": "The user-facing response; concise conversational reply for non-academic intents, answer summary for learning intents",
+  "tutor_intro": "Warm, engaging spoken greeting and problem setup (under 25 words)",
   "concept": "Primary concept for academic intents, otherwise empty string",
   "root_cause": "Likely prerequisite gap for academic intents, otherwise empty string",
   "refresher": "Short refresher for academic intents, otherwise empty string",
@@ -29,9 +33,13 @@ Return only a JSON object with this shape:
       "step": 1,
       "title": "Title for this step",
       "explanation": "Detailed explanation",
-      "equation_or_code": "Optional math equation or code snippet"
+      "equation_or_code": "Optional math equation or code snippet",
+      "teaching_speech": "Conversational spoken teaching beat",
+      "check_question": "Socratic understanding check question",
+      "auto_notes": "Key formula or summary to auto-scribe to notebook"
     }
-  ]
+  ],
+  "tutor_wrapup": "Encouraging wrap-up congratulating the student on mastering this derivation"
 }`;
 
 const styles = {
@@ -96,6 +104,9 @@ export function parseTutorResponse(responseText: string, question: string): Solv
       title: requiredText(step.title, 'step title'),
       explanation: requiredText(step.explanation, 'step explanation'),
       equation_or_code: typeof step.equation_or_code === 'string' ? step.equation_or_code : undefined,
+      teaching_speech: typeof step.teaching_speech === 'string' ? step.teaching_speech : undefined,
+      check_question: typeof step.check_question === 'string' ? step.check_question : undefined,
+      auto_notes: typeof step.auto_notes === 'string' ? step.auto_notes : undefined,
     };
   });
 
@@ -106,6 +117,8 @@ export function parseTutorResponse(responseText: string, question: string): Solv
     topic,
     response,
     spoken_answer: response,
+    tutor_intro: typeof parsed.tutor_intro === 'string' ? parsed.tutor_intro : undefined,
+    tutor_wrapup: typeof parsed.tutor_wrapup === 'string' ? parsed.tutor_wrapup : undefined,
     concept: requiredText(parsed.concept, 'concept'),
     root_cause: requiredText(parsed.root_cause, 'root cause'),
     refresher: requiredText(parsed.refresher, 'refresher'),

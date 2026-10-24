@@ -22,6 +22,9 @@ export interface StepItem {
   title: string;
   explanation: string;
   latex?: string;
+  teaching_speech?: string;
+  check_question?: string;
+  auto_notes?: string;
 }
 
 export interface Question {
@@ -29,6 +32,8 @@ export interface Question {
   author_id?: string; // Hidden in public/anonymous feed
   text: string;
   spoken_answer: string;
+  tutor_intro?: string;
+  tutor_wrapup?: string;
   steps: StepItem[];
   subject: string;
   concept: string;

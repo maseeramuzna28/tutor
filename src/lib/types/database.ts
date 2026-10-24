@@ -19,6 +19,9 @@ export interface QuestionStep {
   title: string;
   explanation: string;
   equation_or_code?: string;
+  teaching_speech?: string;
+  check_question?: string;
+  auto_notes?: string;
 }
 
 export interface Question {
@@ -157,6 +160,8 @@ export interface ConversationalSolveResponse extends TutorResponseBase {
 export interface LearningSolveResponse extends TutorResponseBase {
   intent: 'question' | 'learning_request' | 'clarification';
   spoken_answer: string;
+  tutor_intro?: string;
+  tutor_wrapup?: string;
   steps: QuestionStep[];
   concept: string;
   root_cause: string;
