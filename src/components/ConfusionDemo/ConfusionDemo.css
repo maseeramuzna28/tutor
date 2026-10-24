@@ -1,0 +1,56 @@
+.cmap {
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  padding: clamp(16px, 2.5vw, 24px);
+}
+.cmap__head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 6px; }
+.cmap__title { font-size: var(--step-1); font-weight: 500; font-family: var(--font-display); color: var(--ink); }
+.cmap__label {
+  font-family: var(--font-mono); font-size: var(--step--1);
+  text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+}
+.cmap__hint { margin-bottom: 16px; font-size: 0.95rem; color: var(--ink-2); font-family: var(--font-body); }
+
+.cmap__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+
+.cmap__cell {
+  display: flex; flex-direction: column; justify-content: space-between; gap: 14px;
+  min-height: 96px; padding: 12px; text-align: left;
+  border: 1px solid var(--rule); border-radius: var(--radius);
+  background: var(--paper);
+  background: color-mix(in srgb, var(--red) calc(var(--heat) * 0.35%), var(--paper));
+  transition: transform 0.2s var(--ease), border-color 0.2s var(--ease), background-color 0.5s var(--ease);
+  cursor: pointer;
+}
+.cmap__cell:hover { border-color: var(--ink); }
+.cmap__cell:active { transform: scale(0.97); }
+.cmap__cell[data-top="true"] { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+
+.cmap__text { display: flex; flex-direction: column; gap: 4px; }
+.cmap__name { font-weight: 600; font-size: 0.95rem; line-height: 1.2; color: var(--ink); font-family: var(--font-body); }
+.cmap__flag {
+  min-height: 1em; font-family: var(--font-mono); font-size: 0.7rem;
+  text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink);
+}
+
+.cmap__bar { display: block; height: 4px; background: rgba(20, 16, 15, 0.12); }
+.cmap__fill {
+  display: block; height: 100%; width: calc(var(--heat) * 1%);
+  background: var(--red); transition: width 0.5s var(--ease);
+}
+
+.cmap__foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 16px; }
+.cmap__summary { font-size: 0.92rem; color: var(--ink-2); font-family: var(--font-body); }
+.cmap__summary strong { color: var(--ink); }
+.cmap__reset {
+  flex: none; padding: 8px 4px; border: 0; background: none;
+  font-weight: 600; color: var(--ink);
+  text-decoration: underline; text-underline-offset: 4px;
+  cursor: pointer;
+}
+.cmap__reset:hover { color: var(--red); }
+.cmap__note { margin-top: 10px; font-size: 0.8rem; color: var(--muted); font-family: var(--font-body); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cmap__cell, .cmap__fill { transition: none; }
+}

@@ -1,0 +1,23 @@
+.pwall__card {
+  display: flex; flex-direction: column; gap: 14px;
+  min-height: 190px; margin: 0; padding: 20px;
+  background: #1b1514;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius);
+  box-shadow: 0 22px 44px rgba(0, 0, 0, 0.5);
+  backface-visibility: hidden;
+  transition: border-color 0.25s ease;
+}
+.pwall__card:hover { border-color: var(--red-on-night); }
+.pwall__card[data-planned="true"] { border-style: dashed; }
+.pwall__label {
+  display: flex; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 0.72rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-night-muted);
+}
+.pwall__q { margin: 0; color: var(--on-night); font-family: var(--font-display); font-weight: 450; font-size: 1.22rem; line-height: 1.25; }
+.pwall__to {
+  margin: auto 0 0; padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.04em; color: var(--red-on-night);
+}

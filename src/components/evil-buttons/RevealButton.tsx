@@ -47,23 +47,23 @@ export const RevealButton = React.forwardRef<
         data-state={revealed ? "revealed" : "hidden"}
         onClick={() => updateRevealed(!revealed)}
         className={cn(
-          "group relative inline-flex cursor-pointer items-center justify-between gap-3 overflow-hidden rounded-none px-3 py-1.5 text-xs outline-none select-none transition-all duration-150 font-mono",
-          "border border-stone-300 bg-white hover:border-stone-900 text-stone-700",
-          revealed && "border-red-600 bg-red-50 text-stone-950",
+          "group relative inline-flex cursor-pointer items-center justify-between gap-3 overflow-hidden rounded-lg px-3 py-1.5 text-xs outline-none select-none transition-all duration-150 shadow-xs",
+          "border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900",
+          revealed && "border-indigo-300 bg-indigo-50/70 text-indigo-900",
           className,
         )}
         {...props}
       >
         <span className="flex min-w-0 flex-col items-start text-left">
-          <span className="text-[9px] uppercase tracking-wider font-semibold text-stone-500">
+          <span className="text-[10px] font-semibold text-slate-500">
             {revealed ? label : hiddenLabel}
           </span>
-          <span className="text-xs font-mono font-bold text-stone-900">
+          <span className="text-xs font-mono font-bold text-slate-900">
             {revealed ? secret : maskedValue}
           </span>
         </span>
 
-        <Shield className={`h-3.5 w-3.5 transition-colors ${revealed ? "text-red-600" : "text-stone-400"}`} />
+        <Shield className={`h-3.5 w-3.5 transition-colors ${revealed ? "text-indigo-600" : "text-slate-400"}`} />
       </button>
     );
   },

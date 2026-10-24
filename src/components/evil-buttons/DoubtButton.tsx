@@ -119,10 +119,10 @@ export const DoubtButton = React.forwardRef<
         data-state={state}
         onClick={handleClick}
         className={cn(
-          "relative inline-flex h-9 min-w-44 cursor-pointer items-center justify-center overflow-hidden rounded-none px-4 text-xs font-mono uppercase tracking-wider select-none transition-all",
+          "relative inline-flex h-9 min-w-44 cursor-pointer items-center justify-center overflow-hidden rounded-lg px-4 text-xs font-semibold select-none transition-all shadow-xs",
           isSuccess
-            ? "bg-red-600 text-white border border-red-700"
-            : "border border-stone-300 bg-white text-stone-900 hover:border-red-600 hover:text-red-600",
+            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+            : "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 hover:border-slate-300",
           className,
         )}
         {...props}

@@ -1,0 +1,56 @@
+/* Scroll progress bar */
+.scrollbar { position: fixed; top: 0; left: 0; right: 0; z-index: 90; height: 3px; pointer-events: none; }
+.scrollbar span { display: block; height: 100%; background: var(--red); transform: scaleX(0); transform-origin: left; }
+
+/* Interactive grid background */
+.has-grid { position: relative; isolation: isolate; overflow: hidden; }
+.gridbg {
+  --gx: -999px; --gy: -999px;
+  position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 48px 48px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+}
+.gridbg canvas { position: absolute; inset: 0; }
+.gridbg__glow {
+  position: absolute; left: 0; top: 0; width: 420px; height: 420px; margin: -210px 0 0 -210px;
+  border-radius: 50%; background: rgba(200, 16, 46, 0.13); filter: blur(60px);
+  transform: translate3d(var(--gx), var(--gy), 0); will-change: transform;
+}
+
+/* Word by word text reveal with blur */
+.rtext { display: block; }
+.rtext__word { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.12em; margin-bottom: -0.12em; }
+.rtext__word > span {
+  display: inline-block; opacity: 0; transform: translateY(110%); filter: blur(8px);
+  transition: transform 0.8s var(--ease), opacity 0.8s var(--ease), filter 0.8s var(--ease);
+}
+.rtext.is-in .rtext__word > span { opacity: 1; transform: none; filter: none; }
+.rtext__accent { font-style: italic; color: var(--red); }
+@media (prefers-reduced-motion: reduce) {
+  .rtext__word > span { opacity: 1; transform: none; filter: none; transition: none; }
+}
+
+/* Optional blur on scroll reveal (use on small elements only) */
+.reveal--blur { filter: blur(6px); }
+.reveal--blur.is-visible { filter: none; }
+.reveal--blur { transition: opacity 0.7s var(--ease), transform 0.7s var(--ease), filter 0.7s var(--ease); }
+@media (prefers-reduced-motion: reduce) { .reveal--blur { filter: none; } }
+
+/* 3D tilt cards */
+.tilt {
+  position: relative;
+  transform: perspective(900px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.18s ease-out, border-color 0.25s;
+  will-change: transform;
+}
+.tilt::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity 0.25s;
+  background: radial-gradient(260px circle at var(--sx, 50%) var(--sy, 50%), rgba(200, 16, 46, 0.1), transparent 65%);
+}
+.tilt:hover::after { opacity: 1; }
+.tilt:hover { border-color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .tilt { transform: none; transition: none; } }

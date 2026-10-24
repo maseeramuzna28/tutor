@@ -1,0 +1,34 @@
+:root {
+  --paper: #f4f4f2;
+  --paper-2: #e9e8e5;
+  --ink: #14100f;
+  --ink-2: #3a3330;
+  --muted: #665d5a;
+  --rule: #cfccc7;
+  --grid-line: rgba(20, 16, 15, 0.07);
+  --surface: #fcfcfb;
+
+  --red: #c8102e;
+  --red-deep: #8f0b22;
+
+  --night: #120d0d;
+  --on-night: #f2eeec;
+  --on-night-muted: #a89f9b;
+  --red-on-night: #ff5c6c;
+
+  --font-display: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --font-body: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --step--1: clamp(0.78rem, 0.76rem + 0.1vw, 0.85rem);
+  --step-0: clamp(1rem, 0.97rem + 0.15vw, 1.0625rem);
+  --step-1: clamp(1.2rem, 1.1rem + 0.5vw, 1.5rem);
+  --step-2: clamp(1.6rem, 1.3rem + 1.5vw, 2.4rem);
+  --step-3: clamp(2.2rem, 1.6rem + 3vw, 4rem);
+  --step-4: clamp(2.6rem, 1.4rem + 6vw, 6.5rem);
+
+  --gutter: clamp(20px, 4vw, 56px);
+  --maxw: 1240px;
+  --radius: 2px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
