@@ -68,10 +68,11 @@ export async function POST(req: NextRequest) {
 
       try {
         const response = await solveAcademicDoubt(body);
+        const respAny = response as any;
         const formatted = {
           ...response,
-          spoken_answer: response.spoken_answer || (response as any).response,
-          steps: (response.steps || []).map((s: any, idx: number) => ({
+          spoken_answer: respAny.spoken_answer || respAny.response,
+          steps: (respAny.steps || []).map((s: any, idx: number) => ({
             step_number: s.step_number || s.step || idx + 1,
             title: s.title || `Step ${idx + 1}`,
             explanation: s.explanation || '',
