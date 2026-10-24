@@ -44,7 +44,7 @@ export async function POST(
     }
 
     if (auth?.user?.id) {
-      await awardPoints(auth.user.id, `REPLY_COMMUNITY:${replyId}`, REWARD_AMOUNTS.SUBMIT_ANSWER);
+      await awardPoints(auth.user.id, `REPLY_COMMUNITY:${replyId}`, REWARD_AMOUNTS.ANSWER_QUESTION);
     }
 
     return apiSuccess(newReply, 201);

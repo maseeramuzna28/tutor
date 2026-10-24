@@ -114,7 +114,7 @@ interface DomainTemplate {
   root_cause: string;
   analogy: string;
   refresher: string;
-  steps: { title: string; explanation: string; equation_or_code?: string }[];
+  steps: { step?: number; title: string; explanation: string; equation_or_code?: string }[];
   flowNodes: { id: string; label: string; type: 'start' | 'process' | 'decision' | 'end'; tag: string; desc: string }[];
 }
 

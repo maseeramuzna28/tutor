@@ -4,8 +4,6 @@ import { apiError, apiSuccess } from '@/lib/errors';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { REPORT_THRESHOLD_HIDE } from '@/lib/moderation/profanity';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

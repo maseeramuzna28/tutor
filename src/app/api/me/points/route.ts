@@ -5,8 +5,6 @@ import { getAuthContext } from '@/lib/auth';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { computeUserBadges, DAILY_POINTS_CAP } from '@/lib/points/engine';
 
-export const dynamic = 'force-dynamic';
-
 export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthContext(req);

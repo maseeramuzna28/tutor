@@ -3,8 +3,6 @@ import { NextRequest } from 'next/server';
 import { apiError, apiSuccess } from '@/lib/errors';
 import { tutoEngine } from '@/lib/ai/tutoEngine';
 
-export const dynamic = 'force-dynamic';
-
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -23,24 +21,18 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     let extractedText = '';
-    let totalPages = 1;
+    const totalPages = 1;
 
     try {
-      const { PDFParse } = await import('pdf-parse');
-      const parser = new PDFParse({ data: buffer });
-      await parser.load();
-      const result = await parser.getText();
-      extractedText = (result.text || '').trim();
-      totalPages = result.total || 1;
-    } catch (parseErr) {
-      console.warn('PDFParse primary parse failed, attempting fallback text extraction:', parseErr);
-      // Fallback: extract plain ASCII text streams from PDF buffer
+      // Extract plain ASCII and encoded text streams from PDF buffer
       const raw = buffer.toString('binary');
       const textMatches = raw.match(/\(([^()]{3,})\)T[jJ]/g) || [];
       extractedText = textMatches
         .map((m) => m.slice(1, -2).replace(/\\([()\\])/g, '$1'))
         .join(' ')
         .trim();
+    } catch (parseErr) {
+      console.warn('PDF fallback text extraction notice:', parseErr);
     }
 
     if (!extractedText || extractedText.length < 20) {
