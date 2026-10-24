@@ -25,6 +25,7 @@ import TutoLoader from "@/components/TutoLoader";
 import PdfTutorWorkspace from "@/components/PdfTutorWorkspace";
 import HandsfreeNotebookSurface from "@/components/HandsfreeNotebookSurface";
 import SocraticTutorCompanion from "@/components/SocraticTutorCompanion";
+import { speakSocraticTurn, stopAllSpeech } from "@/lib/voice/speechAudioEngine";
 
 export default function TutorPage() {
   const [micState, setMicState] = useState<MicState>("idle");
@@ -96,32 +97,23 @@ export default function TutorPage() {
   };
 
   const playSpokenAnswer = (text: string) => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-IN";
-      utterance.rate = 1.0;
-      utterance.onstart = () => setIsSpeakingAudio(true);
-      utterance.onend = () => {
+    speakSocraticTurn({
+      text,
+      rate: 0.90, // Comfortable, crystal-clear 0.90x pacing
+      onStart: () => setIsSpeakingAudio(true),
+      onEnd: () => {
         setIsSpeakingAudio(false);
         setMicState("idle");
-      };
-      utterance.onerror = () => {
+      },
+      onError: () => {
         setIsSpeakingAudio(false);
         setMicState("idle");
-      };
-      window.speechSynthesis.speak(utterance);
-    } else {
-      setTimeout(() => {
-        setMicState("idle");
-      }, 3500);
-    }
+      },
+    });
   };
 
   const stopAudio = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopAllSpeech();
     setIsSpeakingAudio(false);
     setMicState("idle");
   };

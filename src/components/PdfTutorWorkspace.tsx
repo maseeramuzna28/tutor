@@ -35,6 +35,7 @@ import { motion, AnimatePresence } from "motion/react";
 import MathStepRenderer from "@/components/MathStepRenderer";
 import TutoLoader from "@/components/TutoLoader";
 import { StepItem } from "@/lib/types";
+import { speakSocraticTurn, stopAllSpeech } from "@/lib/voice/speechAudioEngine";
 
 interface StrokePoint {
   x: number;
@@ -416,24 +417,19 @@ export default function PdfTutorWorkspace() {
     playSpokenAudio(selectedDoc.pageContent.solutionSpoken);
   };
 
-  // Audio Playback
+  // Audio Playback with clean math verbalization & Siri-level clarity (0.90x)
   const playSpokenAudio = (text: string) => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "en-IN";
-      utterance.rate = 1.0;
-      utterance.onstart = () => setIsPlayingAudio(true);
-      utterance.onend = () => setIsPlayingAudio(false);
-      utterance.onerror = () => setIsPlayingAudio(false);
-      window.speechSynthesis.speak(utterance);
-    }
+    speakSocraticTurn({
+      text,
+      rate: 0.90,
+      onStart: () => setIsPlayingAudio(true),
+      onEnd: () => setIsPlayingAudio(false),
+      onError: () => setIsPlayingAudio(false),
+    });
   };
 
   const stopAudio = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopAllSpeech();
     setIsPlayingAudio(false);
   };
 

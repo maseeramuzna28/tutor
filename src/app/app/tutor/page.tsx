@@ -12,6 +12,7 @@ import RequireRole from "@/components/App/RequireRole";
 import VisualFlowchart, { MathBlock } from "@/components/ui/VisualFlowchart";
 import SocraticTutorCompanion from "@/components/SocraticTutorCompanion";
 import { Question } from "@/lib/types";
+import { speakSocraticTurn, stopAllSpeech } from "@/lib/voice/speechAudioEngine";
 
 function AnswerView({
   answer,
@@ -61,9 +62,7 @@ function AnswerView({
   useEffect(() => {
     setCanSpeak(typeof window !== "undefined" && "speechSynthesis" in window);
     return () => {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
+      stopAllSpeech();
     };
   }, []);
 
@@ -83,24 +82,24 @@ function AnswerView({
 
   const toggleSpeak = () => {
     if (speaking) {
-      window.speechSynthesis.cancel();
+      stopAllSpeech();
       setSpeaking(false);
       return;
     }
     const currentStep = answer.steps[shown - 1] || answer.steps[0];
     const text =
       (currentStep as any).teaching_speech ||
-      `Step ${shown}. ${currentStep.title}. ${(currentStep.body || '').split('.')[0]}. Does this make intuitive sense?`;
-    const cleanText = text
-      .replace(/\$(.*?)\$/g, '$1')
-      .replace(/`{1,3}([^`]+)`{1,3}/g, '$1')
-      .replace(/\\mathcal\{O\}\((.*?)\)/gi, 'O of $1');
-    const u = new SpeechSynthesisUtterance(cleanText);
-    u.rate = 1.0;
-    u.pitch = 1.05;
-    u.onend = () => setSpeaking(false);
-    window.speechSynthesis.speak(u);
-    setSpeaking(true);
+      `Step ${shown}. ${currentStep.title}. ${(currentStep.body || '').split('.')[0]}.`;
+    const checkQ = (currentStep as any).check_question || "Does this make intuitive sense?";
+
+    speakSocraticTurn({
+      text,
+      checkQuestion: checkQ,
+      rate: 0.90, // Calibrated 0.90x speed for Siri-level clarity
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+      onError: () => setSpeaking(false),
+    });
   };
 
   const adaptedQuestion: Question = {

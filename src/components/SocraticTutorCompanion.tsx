@@ -23,6 +23,12 @@ import {
 import { StepItem, Question } from "@/lib/types";
 import { apiClient } from "@/lib/apiClient";
 import { SocraticChatResponse, SocraticChatTurn, SocraticSessionState } from "@/lib/types/database";
+import {
+  speakSocraticTurn,
+  stopAllSpeech,
+  getBestSiriVoice,
+  verbalizeMathForSpeech,
+} from "@/lib/voice/speechAudioEngine";
 
 interface SocraticTutorCompanionProps {
   question: Question;
@@ -54,9 +60,9 @@ export default function SocraticTutorCompanion({
     mastered_points: [],
   });
 
-  // UI & Audio Controls
+  // UI & Audio Controls (calibrated to 0.90x speed for Siri-level clarity)
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [speechRate, setSpeechRate] = useState<number>(1.0);
+  const [speechRate, setSpeechRate] = useState<number>(0.90);
   const [isWaitingForStudent, setIsWaitingForStudent] = useState<boolean>(false);
   const [isThinking, setIsThinking] = useState<boolean>(false);
   const [studentInput, setStudentInput] = useState<string>("");
@@ -71,7 +77,7 @@ export default function SocraticTutorCompanion({
   const speechRecognitionRef = useRef<any>(null);
   const currentStep = question.steps[activeStepIndex] || question.steps[0];
 
-  // Load available system voices
+  // Load available system voices & select natural Siri voice
   useEffect(() => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
 
@@ -79,12 +85,8 @@ export default function SocraticTutorCompanion({
       const voices = window.speechSynthesis.getVoices();
       setAvailableVoices(voices);
 
-      const naturalVoice =
-        voices.find((v) => /natural|samantha|karen|victoria|google uk english female|zira|george/i.test(v.name)) ||
-        voices.find((v) => v.lang.startsWith("en-IN") || v.lang.startsWith("en-US") || v.lang.startsWith("en-GB")) ||
-        voices[0];
-
-      if (naturalVoice) setSelectedVoice(naturalVoice);
+      const naturalSiriVoice = getBestSiriVoice(voices);
+      if (naturalSiriVoice) setSelectedVoice(naturalSiriVoice);
     };
 
     updateVoices();
@@ -97,7 +99,7 @@ export default function SocraticTutorCompanion({
     setSpeechSupported(hasSR);
 
     return () => {
-      window.speechSynthesis.cancel();
+      stopAllSpeech();
       if (speechRecognitionRef.current) {
         try {
           speechRecognitionRef.current.stop();
@@ -118,60 +120,40 @@ export default function SocraticTutorCompanion({
     }));
   }, [question, activeStepIndex, initialTopic]);
 
-  // Clean raw LaTeX and code symbols so speech sounds natural
-  const cleanForSpeech = (text: string) => {
-    return text
-      .replace(/\\mathcal\{O\}\((.*?)\)/gi, "O of $1")
-      .replace(/\$O\((.*?)\)\$/gi, "O of $1")
-      .replace(/O\((.*?)\)/gi, "O of $1")
-      .replace(/\\lambda/gi, "lambda")
-      .replace(/\$(.*?)\$/g, "$1")
-      .replace(/\*\*(.*?)\*\*/g, "$1")
-      .replace(/`{1,3}([^`]+)`{1,3}/g, "$1")
-      .replace(/\\le/gi, "less than or equal to")
-      .replace(/\\ge/gi, "greater than or equal to")
-      .replace(/\s+/g, " ")
-      .trim();
-  };
-
-  // Speak a conversational script, then pause and wait for student
-  const speakTutorTurn = (scriptText: string) => {
+  // Speak a conversational script with clear pronunciation and natural pause before questions
+  const speakTutorTurn = (scriptText: string, checkQ?: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
       setIsWaitingForStudent(true);
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const cleanScript = cleanForSpeech(scriptText);
-    const utterance = new SpeechSynthesisUtterance(cleanScript);
-    if (selectedVoice) utterance.voice = selectedVoice;
-    utterance.rate = speechRate;
-    utterance.pitch = 1.05; // Friendly, warm teaching cadence
+    const utterance = speakSocraticTurn({
+      text: scriptText,
+      checkQuestion: checkQ,
+      rate: speechRate,
+      pitch: 1.0,
+      volume: 1.0,
+      voice: selectedVoice,
+      onStart: () => {
+        setIsPlaying(true);
+        setIsWaitingForStudent(false);
+      },
+      onEnd: () => {
+        setIsPlaying(false);
+        setIsWaitingForStudent(true); // Tutor pauses here for student!
+      },
+      onError: () => {
+        setIsPlaying(false);
+        setIsWaitingForStudent(true);
+      },
+    });
 
-    utterance.onstart = () => {
-      setIsPlaying(true);
-      setIsWaitingForStudent(false);
-      utteranceRef.current = utterance;
-    };
-
-    utterance.onend = () => {
-      setIsPlaying(false);
-      setIsWaitingForStudent(true); // Tutor naturally pauses for student's answer!
-    };
-
-    utterance.onerror = () => {
-      setIsPlaying(false);
-      setIsWaitingForStudent(true);
-    };
-
-    window.speechSynthesis.speak(utterance);
+    utteranceRef.current = utterance;
   };
 
-  // Stop tutor speech
+  // Stop tutor speech cleanly
   const stopSpeech = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopAllSpeech();
     setIsPlaying(false);
     setIsWaitingForStudent(true);
   };
@@ -221,8 +203,11 @@ export default function SocraticTutorCompanion({
         onStepChange(Math.min(question.steps.length - 1, response.sessionState.step_index - 1));
       }
 
-      // Speak conversational script and pause for next student reply
-      speakTutorTurn(response.spoken_text || `${response.feedback} ${response.check_question}`);
+      // Speak conversational script with clear pronunciation and natural pause before questions
+      speakTutorTurn(
+        response.spoken_text || `${response.feedback} ${response.check_question}`,
+        response.check_question
+      );
     } catch (err: any) {
       console.error("Socratic tutor turn failed:", err);
       // Fallback response
@@ -288,19 +273,20 @@ export default function SocraticTutorCompanion({
     setIsListeningMic(false);
   };
 
-  // Teach the active step from the question
+  // Teach the active step from the question with natural verbalization and question pause
   const startTeachingCurrentStep = () => {
     const step = question.steps[activeStepIndex] || question.steps[0];
+    const checkQ = step.check_question || "Does this step make intuitive sense so far?";
     const initialSpeech =
       step.teaching_speech ||
-      `${step.title}. ${step.explanation.slice(0, 140)}. ${step.check_question || "Does this step make intuitive sense so far?"}`;
+      `${step.title}. ${(step.explanation || '').split('.')[0]}.`;
 
     // Seed current turn view
     setCurrentTurn({
       feedback: activeStepIndex === 0 && question.tutor_intro ? question.tutor_intro : "Let's examine this step together.",
       explanation: step.explanation,
       code_snippet: step.latex,
-      check_question: step.check_question || "Why do you think this condition is required?",
+      check_question: checkQ,
       spoken_text: initialSpeech,
       sessionState: {
         concept: question.concept,
@@ -316,7 +302,7 @@ export default function SocraticTutorCompanion({
       ],
     });
 
-    speakTutorTurn(initialSpeech);
+    speakTutorTurn(initialSpeech, checkQ);
   };
 
   // Quick Action: Explain simpler
@@ -399,9 +385,9 @@ export default function SocraticTutorCompanion({
             </button>
           )}
 
-          {/* Speed Toggle */}
+          {/* Speed Toggle (0.85x - 0.95x for clear, crisp pronunciation) */}
           <div className="flex border border-stone-300 bg-stone-50 text-[10px] font-mono">
-            {[0.85, 1.0, 1.15].map((rate) => (
+            {[0.85, 0.90, 0.95].map((rate) => (
               <button
                 key={rate}
                 onClick={() => setSpeechRate(rate)}
